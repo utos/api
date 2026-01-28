@@ -55,4 +55,4 @@ jobs:
         env:
           BUF_TOKEN: ${{ secrets.BUF_TOKEN }}
         run: |
-          npx buf push --label "v${{ steps.version.outputs.version }}"
+          npx buf push --label "v${{ steps.version.outputs.version }}" --label main
