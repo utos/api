@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package utos.workflow.v1;
+
+option csharp_namespace = "Utos.Workflow.V1";
+
+// ============================================================================
+// Common Types
+// ============================================================================
+
+// Standard error response
+message WorkflowError {
+  // Error code
+  string code = 1;
+
+  // Error message
+  string message = 2;
+
+  // Additional error details as JSON string
+  optional string details = 3;
+}

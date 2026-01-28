@@ -1,0 +1,255 @@
+syntax = "proto3";
+
+import "workflow/v1/bundle.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+package utos.daemon.v1;
+
+option csharp_namespace = "Utos.Daemon.V1";
+
+// ============================================================================
+// Daemon gRPC Service
+// ============================================================================
+
+service WorkflowExecutionService {
+  // Schedule a new workflow execution
+  rpc ScheduleExecution(ScheduleExecutionRequest) returns (ScheduleExecutionResponse);
+
+  // Get detailed execution information
+  rpc GetExecution(GetExecutionRequest) returns (GetExecutionResponse);
+
+  // List all executions
+  rpc ListExecutions(ListExecutionsRequest) returns (ListExecutionsResponse);
+
+  // Watch execution events with streaming
+  rpc WatchExecution(WatchExecutionRequest) returns (stream WatchExecutionResponse);
+}
+
+service HealthService {
+  // Check daemon health
+  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
+}
+
+// ============================================================================
+// Request/Response Messages
+// ============================================================================
+
+message ScheduleExecutionRequest {
+  // Workflow specification to execute
+  utos.workflow.v1.WorkflowBundle bundle = 1;
+
+  // Input data passed to the start activity
+  ExecutionPayload input = 2;
+
+  // Name of the activity to start workflow execution from
+  // Must match a key in workflow.spec.activities map
+  string start_activity = 3;
+}
+
+message GetExecutionRequest {
+  // Unique execution identifier
+  string execution_id = 1;
+}
+
+message ListExecutionsRequest {
+  // Future: Add filtering, pagination
+}
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_EXECUTION = 1;
+  EVENT_TYPE_LOG = 2;
+  EVENT_TYPE_OUTPUT = 3;
+}
+
+message WatchExecutionRequest {
+  // Unique execution identifier
+  string execution_id = 1;
+
+  // Event types to include
+  repeated EventType type = 2;
+
+  // Filter by source name
+  optional string source = 3;
+
+  // Filter by category
+  optional string category = 4;
+
+  // Minimum log level (higher severity)
+  optional LogLevel level = 5;
+
+  // Last N events (mutually exclusive with 'after')
+  optional int32 tail = 6;
+
+  // Start after this event index (mutually exclusive with 'tail')
+  optional int32 after = 7;
+}
+
+message GetHealthRequest {
+  // Empty for now
+}
+
+// ============================================================================
+// Core Types
+// ============================================================================
+
+message ScheduleExecutionResponse {
+  // Unique execution identifier
+  string id = 1;
+
+  // Current execution status
+  ExecutionStatus status = 2;
+}
+
+message ExecutionSummary {
+  // Unique execution identifier
+  string id = 1;
+
+  // Current execution status
+  ExecutionStatus status = 2;
+
+  // Workflow name from metadata
+  string workflow_name = 3;
+
+  // Workflow version from metadata
+  string workflow_version = 4;
+
+  // When the execution was created
+  google.protobuf.Timestamp created_at = 5;
+
+  // When the execution was scheduled
+  optional google.protobuf.Timestamp scheduled_at = 6;
+
+  // When the execution started (became ACTIVE)
+  optional google.protobuf.Timestamp started_at = 7;
+
+  // When the execution completed or failed (whichever happened)
+  optional google.protobuf.Timestamp finished_at = 8;
+
+  // Error message if execution failed (truncated to 200 chars for list view)
+  optional string error_message = 9;
+}
+
+message GetExecutionResponse {
+  // Unique execution identifier
+  string id = 1;
+
+  // Current execution status
+  ExecutionStatus status = 2;
+
+  // Workflow name from metadata
+  string workflow_name = 3;
+
+  // Workflow version from metadata
+  string workflow_version = 4;
+
+  // Full workflow bundle
+  utos.workflow.v1.WorkflowBundle bundle = 5;
+
+  // Execution input (data passed to start activity)
+  optional ExecutionPayload input = 6;
+
+  // When the execution was created
+  google.protobuf.Timestamp created_at = 7;
+
+  // When the execution was scheduled
+  optional google.protobuf.Timestamp scheduled_at = 8;
+
+  // When the execution started (became ACTIVE)
+  optional google.protobuf.Timestamp started_at = 9;
+
+  // When the execution completed
+  optional google.protobuf.Timestamp completed_at = 10;
+
+  // When the execution failed
+  optional google.protobuf.Timestamp failed_at = 11;
+
+  // Error message if execution failed
+  optional string error_message = 12;
+}
+
+message ListExecutionsResponse {
+  // Array of execution summaries
+  repeated ExecutionSummary executions = 1;
+}
+
+message GetHealthResponse {
+  // Service health status
+  HealthStatus status = 1;
+
+  // Service version
+  string version = 2;
+}
+
+// ============================================================================
+// Execution Types
+// ============================================================================
+
+message ExecutionPayload {
+  // Input data supporting JSON-like recursive structures
+  // Values can be strings, numbers, booleans, arrays, or nested objects
+  map<string, google.protobuf.Value> data = 1;
+}
+
+enum ExecutionStatus {
+  EXECUTION_STATUS_UNSPECIFIED = 0;
+  EXECUTION_STATUS_SCHEDULED = 1;
+  EXECUTION_STATUS_ACTIVE = 2;
+  // EXECUTION_STATUS_SUSPENDED = 3;  // Future: Waiting for external event/webhook/human
+  EXECUTION_STATUS_COMPLETED = 10;    // Terminal: success
+  EXECUTION_STATUS_FAILED = 11;       // Terminal: failure
+  // EXECUTION_STATUS_CANCELLED = 12; // Future: Terminal user/system cancelled
+}
+
+enum HealthStatus {
+  HEALTH_STATUS_UNSPECIFIED = 0;
+  HEALTH_STATUS_HEALTHY = 1;
+  HEALTH_STATUS_UNHEALTHY = 2;
+}
+
+// ============================================================================
+// Event Streaming Types
+// ============================================================================
+
+message WatchExecutionResponse {
+  oneof event {
+    ExecutionEvent execution = 1;
+    LogEvent log = 2;
+    OutputEvent output = 3;
+  }
+}
+
+message ExecutionEvent {
+  string execution_id = 1;
+  ExecutionStatus status = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message LogEvent {
+  string source = 1;
+  optional string category = 2;
+  LogLevel level = 3;
+  string message = 4;
+  google.protobuf.Timestamp timestamp = 5;
+}
+
+message OutputEvent {
+  string source = 1;
+  // Output data content. Maximum 1MB - content exceeding this limit will be
+  // truncated with indicator "... [TRUNCATED: original size X bytes]"
+  // A system WARNING log will be emitted when truncation occurs
+  // For large outputs, consider external storage (S3, blob) and output metadata only
+  string data = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+enum LogLevel {
+  LOG_LEVEL_UNSPECIFIED = 0;
+  LOG_LEVEL_TRACE = 1;
+  LOG_LEVEL_DEBUG = 2;
+  LOG_LEVEL_INFO = 3;
+  LOG_LEVEL_WARN = 4;
+  LOG_LEVEL_ERROR = 5;
+  LOG_LEVEL_FATAL = 6;
+}

@@ -1,0 +1,7 @@
+version: v2
+plugins:
+  # C# / .NET
+  - remote: buf.build/protocolbuffers/csharp
+    out: gen/csharp
+  - remote: buf.build/grpc/csharp
+    out: gen/csharp

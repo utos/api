@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+import "workflow/v1/workflow.proto";
+
+package utos.workflow.v1;
+
+option csharp_namespace = "Utos.Workflow.V1";
+
+// ============================================================================
+// Bundle (Built Format)
+// ============================================================================
+
+// A fully-resolved workflow bundle ready for execution.
+// Created by CLI after resolving all dependencies.
+// This is the "built" format - all workflows are included, no external references.
+message WorkflowBundle {
+  // The workflow to start execution from (key in workflows map)
+  string entry_point = 1;
+
+  // All resolved workflows by name
+  // Includes the root workflow and all transitive dependencies
+  map<string, Workflow> workflows = 2;
+}

@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+import "workflow/v1/activity.proto";
+
+package utos.workflow.v1;
+
+option csharp_namespace = "Utos.Workflow.V1";
+
+// ============================================================================
+// Metadata Definitions
+// ============================================================================
+
+// Workflow metadata and versioning information
+message WorkflowMetadata {
+  // Workflow name/identifier (e.g., "send-email", "process-payment")
+  // Must follow naming convention: lowercase, alphanumeric, hyphens allowed
+  string name = 1;
+
+  // Semantic version for this workflow
+  string version = 2;
+
+  // Human-readable description
+  optional string description = 3;
+}
+
+// ============================================================================
+// Workflow Specification
+// ============================================================================
+
+// A complete Utos workflow specification
+message Workflow {
+  // Utos specification version
+  WorkflowApiVersion api_version = 1;
+
+  // Resource type identifier
+  WorkflowKind kind = 2;
+
+  // Workflow metadata
+  WorkflowMetadata metadata = 3;
+
+  // Workflow specification
+  WorkflowSpec spec = 4;
+}
+
+// Complete workflow definition
+message WorkflowSpec {
+  // Sub-workflow dependencies
+  // Key: alias used in activities (e.g., "claude-agent")
+  // Value: reference string - either:
+  //   - Registry ref: "registry.utos.dev/namespace/name:version"
+  //   - Local file: "./path/to/workflow.yaml" (starts with ./ or ../)
+  map<string, string> dependencies = 1;
+
+  // Map of activity name to activity definition
+  map<string, WorkflowActivity> activities = 2;
+}
+
+// ============================================================================
+// Workflow Enums
+// ============================================================================
+
+enum WorkflowApiVersion {
+  WORKFLOW_API_VERSION_UNSPECIFIED = 0;
+  WORKFLOW_API_VERSION_V1_0_0 = 1;
+}
+
+enum WorkflowKind {
+  WORKFLOW_KIND_UNSPECIFIED = 0;
+  WORKFLOW_KIND_WORKFLOW_UTOS = 1;
+}

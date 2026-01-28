@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package utos.workflow.v1;
+
+option csharp_namespace = "Utos.Workflow.V1";
+
+// ============================================================================
+// Activity Definitions
+// ============================================================================
+
+// Individual workflow activity definition
+message WorkflowActivity {
+  // Activity type - only HTTP activities supported initially
+  HttpActivityType type = 1;
+
+  // Activity configuration
+  HttpActivityConfig config = 2;
+
+  // Transitions to execute after successful completion
+  // Evaluated in order, first matching condition wins
+  // If no transitions match or list is empty, workflow completes
+  repeated Transition on_success = 3;
+}
+
+// Defines a conditional transition to another activity
+message Transition {
+  // Template condition expression (e.g., "{{ output.count > 10 }}")
+  // If empty/omitted, transition always executes (default/fallback transition)
+  optional string condition = 1;
+
+  // Target definition - what to do when this transition is taken
+  TransitionTarget target = 2;
+}
+
+// Defines the target of a transition
+message TransitionTarget {
+  // Activity name or reserved keyword ("end", "error")
+  string name = 1;
+
+  // Optional: Override input for the target activity (future use)
+  // optional ExecutionPayload input = 2;
+}
+
+// Configuration for HTTP activities
+message HttpActivityConfig {
+  // Target URL (supports basic templating)
+  string url = 1;
+
+  // HTTP headers
+  map<string, string> headers = 2;
+
+  // Request body (ignored for GET/DELETE)
+  optional string body = 3;
+}
+
+// ============================================================================
+// Activity Enums
+// ============================================================================
+
+enum HttpActivityType {
+  HTTP_ACTIVITY_TYPE_UNSPECIFIED = 0;
+  HTTP_ACTIVITY_TYPE_GET = 1;
+  HTTP_ACTIVITY_TYPE_POST = 2;
+  HTTP_ACTIVITY_TYPE_PUT = 3;
+  HTTP_ACTIVITY_TYPE_DELETE = 4;
+}
