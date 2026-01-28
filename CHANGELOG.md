@@ -16,3 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `WorkflowExecutionService` for scheduling and watching executions
   - `HealthService` for daemon health checks
 - Buf.build module configuration
+- GitHub Actions CI/CD workflows
+  - CI: lint, breaking change detection, changelog enforcement
+  - Release: version extraction, git tagging, BSR publishing
