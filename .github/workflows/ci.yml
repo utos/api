@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev, main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install buf
+        run: npm install @bufbuild/buf
+
+      - name: Run buf lint
+        run: npx buf lint
+
+  # TODO: Re-enable once stable (1.0.0+). Allow breaking changes only on major version bumps.
+  # breaking:
+  #   name: Breaking change detection
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+  #
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '20'
+  #
+  #     - name: Fetch main branch
+  #       run: git fetch origin main:main
+  #
+  #     - name: Install buf
+  #       run: npm install @bufbuild/buf
+  #
+  #     - name: Check for breaking changes
+  #       run: npx buf breaking --against '.git#branch=main'
+
+  changelog:
+    name: Changelog updated
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.base_ref == 'dev'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check CHANGELOG.md was modified
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q '^CHANGELOG.md$'; then
+            echo "CHANGELOG.md was updated"
+          else
+            echo "::error::CHANGELOG.md must be updated with every PR to dev"
+            exit 1
+          fi

@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    name: Tag and publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Needed to create tags
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install buf
+        run: npm install @bufbuild/buf
+
+      - name: Extract version from CHANGELOG.md
+        id: version
+        run: |
+          # Get first version line that has a date (not Unreleased)
+          VERSION_LINE=$(grep -m1 '^\#\# \[.*\] - [0-9]' CHANGELOG.md || true)
+
+          if [ -z "$VERSION_LINE" ]; then
+            echo "::error::No released version found in CHANGELOG.md (version must have a date, not 'Unreleased')"
+            exit 1
+          fi
+
+          VERSION=$(echo "$VERSION_LINE" | sed 's/.*\[\(.*\)\].*/\1/')
+          echo "Found version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag already exists
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "::error::Tag v${{ steps.version.outputs.version }} already exists"
+            exit 1
+          fi
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Publish to BSR
+        env:
+          BUF_TOKEN: ${{ secrets.BUF_TOKEN }}
+        run: |
+          npx buf push --label "v${{ steps.version.outputs.version }}"
