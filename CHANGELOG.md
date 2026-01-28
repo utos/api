@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.2] - Unreleased
 
-### Changed
-- Release workflow now also updates BSR `main` label (latest stable)
+### Fixed
+- Use BSR tags (immutable) instead of labels for version releases
 
 ## [0.0.1] - 2026-01-28
 
