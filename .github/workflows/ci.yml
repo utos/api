@@ -39,7 +39,7 @@ jobs:
         run: npm install @bufbuild/buf
 
       - name: Check for breaking changes
-        run: npx buf breaking --against 'origin/main'
+        run: npx buf breaking --against '.git#branch=main'
 
   changelog:
     name: Changelog updated

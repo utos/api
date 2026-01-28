@@ -19,3 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI/CD workflows
   - CI: lint, breaking change detection, changelog enforcement
   - Release: version extraction, git tagging, BSR publishing
+
+### Fixed
+- CI breaking change detection git reference format
