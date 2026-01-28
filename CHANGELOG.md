@@ -20,5 +20,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - CI: lint, breaking change detection, changelog enforcement
   - Release: version extraction, git tagging, BSR publishing
 
-### Fixed
-- CI breaking change detection: fetch main branch before comparison
+### Changed
+- Disabled breaking change detection until API is stable (1.0.0+)

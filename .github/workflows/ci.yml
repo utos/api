@@ -23,26 +23,27 @@ jobs:
       - name: Run buf lint
         run: npx buf lint
 
-  breaking:
-    name: Breaking change detection
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Need full history for comparison
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Fetch main branch
-        run: git fetch origin main:main
-
-      - name: Install buf
-        run: npm install @bufbuild/buf
-
-      - name: Check for breaking changes
-        run: npx buf breaking --against '.git#branch=main'
+  # TODO: Re-enable once stable (1.0.0+). Allow breaking changes only on major version bumps.
+  # breaking:
+  #   name: Breaking change detection
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+  #
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '20'
+  #
+  #     - name: Fetch main branch
+  #       run: git fetch origin main:main
+  #
+  #     - name: Install buf
+  #       run: npm install @bufbuild/buf
+  #
+  #     - name: Check for breaking changes
+  #       run: npx buf breaking --against '.git#branch=main'
 
   changelog:
     name: Changelog updated
