@@ -35,6 +35,9 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Fetch main branch
+        run: git fetch origin main:main
+
       - name: Install buf
         run: npm install @bufbuild/buf
 

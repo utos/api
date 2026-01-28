@@ -21,4 +21,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Release: version extraction, git tagging, BSR publishing
 
 ### Fixed
-- CI breaking change detection git reference format
+- CI breaking change detection: fetch main branch before comparison
