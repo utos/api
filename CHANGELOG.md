@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `HttpActivityType` enum to `HttpMethod` (values: `HTTP_METHOD_*`)
 - Moved HTTP method into `HttpActivityConfig` (new `method` field)
 
+### Fixed
+- Use `buf push` default label instead of deprecated `--tag` flag for BSR publishing
+
 ## [0.0.2] - 2026-01-28
 
 ### Fixed
