@@ -5,6 +5,13 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **BREAKING**: Refactored `WorkflowActivity` into a base activity type with `oneof config` for sub-type selection
+- Renamed `HttpActivityType` enum to `HttpMethod` (values: `HTTP_METHOD_*`)
+- Moved HTTP method into `HttpActivityConfig` (new `method` field)
+
 ## [0.0.2] - 2026-01-28
 
 ### Fixed
