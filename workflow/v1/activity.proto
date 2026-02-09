@@ -42,8 +42,8 @@ message TransitionTarget {
 
 // Configuration for HTTP activities
 message HttpActivityConfig {
-  // HTTP method
-  HttpMethod method = 1;
+  // HTTP method (e.g., "GET", "POST", "PUT", "DELETE")
+  string method = 1;
 
   // Target URL (supports basic templating)
   string url = 2;
@@ -53,16 +53,4 @@ message HttpActivityConfig {
 
   // Request body (ignored for GET/DELETE)
   optional string body = 4;
-}
-
-// ============================================================================
-// Activity Enums
-// ============================================================================
-
-enum HttpMethod {
-  HTTP_METHOD_UNSPECIFIED = 0;
-  HTTP_METHOD_GET = 1;
-  HTTP_METHOD_POST = 2;
-  HTTP_METHOD_PUT = 3;
-  HTTP_METHOD_DELETE = 4;
 }
