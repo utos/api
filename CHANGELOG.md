@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **BREAKING**: Refactored `WorkflowActivity` into a base activity type with `oneof config` for sub-type selection
+- Renamed `HttpActivityType` enum to `HttpMethod` (values: `HTTP_METHOD_*`)
+- Moved HTTP method into `HttpActivityConfig` (new `method` field)
+
 ### Fixed
 - Use `buf push` default label instead of deprecated `--tag` flag for BSR publishing
 
