@@ -10,16 +10,15 @@ option csharp_namespace = "Utos.Workflow.V1";
 
 // Individual workflow activity definition
 message WorkflowActivity {
-  // Activity type - only HTTP activities supported initially
-  HttpActivityType type = 1;
-
-  // Activity configuration
-  HttpActivityConfig config = 2;
-
   // Transitions to execute after successful completion
-  // Evaluated in order, first matching condition wins
+  // Evaluated in order; first matching condition wins
   // If no transitions match or list is empty, workflow completes
-  repeated Transition on_success = 3;
+  repeated Transition on_success = 1;
+
+  // Activity-specific configuration — exactly one must be set
+  oneof config {
+    HttpActivityConfig http = 10;
+  }
 }
 
 // Defines a conditional transition to another activity
@@ -43,24 +42,27 @@ message TransitionTarget {
 
 // Configuration for HTTP activities
 message HttpActivityConfig {
+  // HTTP method
+  HttpMethod method = 1;
+
   // Target URL (supports basic templating)
-  string url = 1;
+  string url = 2;
 
   // HTTP headers
-  map<string, string> headers = 2;
+  map<string, string> headers = 3;
 
   // Request body (ignored for GET/DELETE)
-  optional string body = 3;
+  optional string body = 4;
 }
 
 // ============================================================================
 // Activity Enums
 // ============================================================================
 
-enum HttpActivityType {
-  HTTP_ACTIVITY_TYPE_UNSPECIFIED = 0;
-  HTTP_ACTIVITY_TYPE_GET = 1;
-  HTTP_ACTIVITY_TYPE_POST = 2;
-  HTTP_ACTIVITY_TYPE_PUT = 3;
-  HTTP_ACTIVITY_TYPE_DELETE = 4;
+enum HttpMethod {
+  HTTP_METHOD_UNSPECIFIED = 0;
+  HTTP_METHOD_GET = 1;
+  HTTP_METHOD_POST = 2;
+  HTTP_METHOD_PUT = 3;
+  HTTP_METHOD_DELETE = 4;
 }
