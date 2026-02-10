@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+import "daemon/v1/shared.proto";
+import "workflow/v1/bundle.proto";
+import "google/protobuf/timestamp.proto";
+
+package utos.daemon.v1;
+
+option csharp_namespace = "Utos.Daemon.V1";
+
+// ============================================================================
+// Execution Lifecycle Service
+// ============================================================================
+
+service ExecutionService {
+  // Schedule a new workflow execution
+  rpc ScheduleExecution(ScheduleExecutionRequest) returns (ScheduleExecutionResponse);
+
+  // Get detailed execution information
+  rpc GetExecution(GetExecutionRequest) returns (GetExecutionResponse);
+
+  // List all executions
+  rpc ListExecutions(ListExecutionsRequest) returns (ListExecutionsResponse);
+}
+
+// ============================================================================
+// Request/Response Messages
+// ============================================================================
+
+message ScheduleExecutionRequest {
+  // Workflow specification to execute
+  utos.workflow.v1.WorkflowBundle bundle = 1;
+
+  // Input data passed to the start activity
+  ExecutionPayload input = 2;
+
+  // Name of the activity to start workflow execution from
+  // Must match a key in workflow.spec.activities map
+  string start_activity = 3;
+}
+
+message ScheduleExecutionResponse {
+  // Unique execution identifier
+  string id = 1;
+
+  // Current execution status
+  ExecutionStatus status = 2;
+}
+
+message GetExecutionRequest {
+  // Unique execution identifier
+  string execution_id = 1;
+}
+
+message GetExecutionResponse {
+  // Unique execution identifier
+  string id = 1;
+
+  // Current execution status
+  ExecutionStatus status = 2;
+
+  // Workflow name from metadata
+  string workflow_name = 3;
+
+  // Workflow version from metadata
+  string workflow_version = 4;
+
+  // Full workflow bundle
+  utos.workflow.v1.WorkflowBundle bundle = 5;
+
+  // Execution input (data passed to start activity)
+  optional ExecutionPayload input = 6;
+
+  // When the execution was created
+  google.protobuf.Timestamp created_at = 7;
+
+  // When the execution was scheduled
+  optional google.protobuf.Timestamp scheduled_at = 8;
+
+  // When the execution started (became ACTIVE)
+  optional google.protobuf.Timestamp started_at = 9;
+
+  // When the execution completed
+  optional google.protobuf.Timestamp completed_at = 10;
+
+  // When the execution failed
+  optional google.protobuf.Timestamp failed_at = 11;
+
+  // Error message if execution failed
+  optional string error_message = 12;
+}
+
+message ListExecutionsRequest {
+  // Future: Add filtering, pagination
+}
+
+message ListExecutionsResponse {
+  // Array of execution summaries
+  repeated ExecutionSummary executions = 1;
+}
