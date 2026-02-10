@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **BREAKING**: Split `WorkflowExecutionService` into `ExecutionService` and `ObservabilityService`
+- **BREAKING**: Merged `HealthService` into `ObservabilityService`
+- Reorganized `daemon/v1/`: `service.proto` replaced by `shared.proto`, `execution.proto`, `observability.proto`
 - Replaced `HttpMethod` enum with `string` field on `HttpActivityConfig` for better JSON/YAML ergonomics and to avoid C# naming collision with `System.Net.Http.HttpMethod`
 
 ## [0.0.3] - 2026-02-09

@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+package utos.daemon.v1;
+
+option csharp_namespace = "Utos.Daemon.V1";
+
+// ============================================================================
+// Shared Execution Types
+// ============================================================================
+
+message ExecutionPayload {
+  // Input data supporting JSON-like recursive structures
+  // Values can be strings, numbers, booleans, arrays, or nested objects
+  map<string, google.protobuf.Value> data = 1;
+}
+
+message ExecutionSummary {
+  // Unique execution identifier
+  string id = 1;
+
+  // Current execution status
+  ExecutionStatus status = 2;
+
+  // Workflow name from metadata
+  string workflow_name = 3;
+
+  // Workflow version from metadata
+  string workflow_version = 4;
+
+  // When the execution was created
+  google.protobuf.Timestamp created_at = 5;
+
+  // When the execution was scheduled
+  optional google.protobuf.Timestamp scheduled_at = 6;
+
+  // When the execution started (became ACTIVE)
+  optional google.protobuf.Timestamp started_at = 7;
+
+  // When the execution completed or failed (whichever happened)
+  optional google.protobuf.Timestamp finished_at = 8;
+
+  // Error message if execution failed (truncated to 200 chars for list view)
+  optional string error_message = 9;
+}
+
+enum ExecutionStatus {
+  EXECUTION_STATUS_UNSPECIFIED = 0;
+  EXECUTION_STATUS_SCHEDULED = 1;
+  EXECUTION_STATUS_ACTIVE = 2;
+  // EXECUTION_STATUS_SUSPENDED = 3;  // Future: Waiting for external event/webhook/human
+  EXECUTION_STATUS_COMPLETED = 10;    // Terminal: success
+  EXECUTION_STATUS_FAILED = 11;       // Terminal: failure
+  // EXECUTION_STATUS_CANCELLED = 12; // Future: Terminal user/system cancelled
+}

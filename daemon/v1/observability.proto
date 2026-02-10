@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+import "daemon/v1/shared.proto";
+import "google/protobuf/timestamp.proto";
+
+package utos.daemon.v1;
+
+option csharp_namespace = "Utos.Daemon.V1";
+
+// ============================================================================
+// Observability Service (Streaming + Health)
+// ============================================================================
+
+service ObservabilityService {
+  // Watch execution events with streaming
+  rpc WatchExecution(WatchExecutionRequest) returns (stream WatchExecutionResponse);
+
+  // Check daemon health
+  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
+}
+
+// ============================================================================
+// Watch Execution
+// ============================================================================
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_EXECUTION = 1;
+  EVENT_TYPE_LOG = 2;
+  EVENT_TYPE_OUTPUT = 3;
+}
+
+message WatchExecutionRequest {
+  // Unique execution identifier
+  string execution_id = 1;
+
+  // Event types to include
+  repeated EventType type = 2;
+
+  // Filter by source name
+  optional string source = 3;
+
+  // Filter by category
+  optional string category = 4;
+
+  // Minimum log level (higher severity)
+  optional LogLevel level = 5;
+
+  // Last N events (mutually exclusive with 'after')
+  optional int32 tail = 6;
+
+  // Start after this event index (mutually exclusive with 'tail')
+  optional int32 after = 7;
+}
+
+message WatchExecutionResponse {
+  oneof event {
+    ExecutionEvent execution = 1;
+    LogEvent log = 2;
+    OutputEvent output = 3;
+  }
+}
+
+message ExecutionEvent {
+  string execution_id = 1;
+  ExecutionStatus status = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message LogEvent {
+  string source = 1;
+  optional string category = 2;
+  LogLevel level = 3;
+  string message = 4;
+  google.protobuf.Timestamp timestamp = 5;
+}
+
+message OutputEvent {
+  string source = 1;
+  // Output data content. Maximum 1MB - content exceeding this limit will be
+  // truncated with indicator "... [TRUNCATED: original size X bytes]"
+  // A system WARNING log will be emitted when truncation occurs
+  // For large outputs, consider external storage (S3, blob) and output metadata only
+  string data = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+enum LogLevel {
+  LOG_LEVEL_UNSPECIFIED = 0;
+  LOG_LEVEL_TRACE = 1;
+  LOG_LEVEL_DEBUG = 2;
+  LOG_LEVEL_INFO = 3;
+  LOG_LEVEL_WARN = 4;
+  LOG_LEVEL_ERROR = 5;
+  LOG_LEVEL_FATAL = 6;
+}
+
+// ============================================================================
+// Health
+// ============================================================================
+
+message GetHealthRequest {
+  // Empty for now
+}
+
+message GetHealthResponse {
+  // Service health status
+  HealthStatus status = 1;
+
+  // Service version
+  string version = 2;
+}
+
+enum HealthStatus {
+  HEALTH_STATUS_UNSPECIFIED = 0;
+  HEALTH_STATUS_HEALTHY = 1;
+  HEALTH_STATUS_UNHEALTHY = 2;
+}
