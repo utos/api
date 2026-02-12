@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package utos.workflow.v1;
 
+import "google/protobuf/struct.proto";
+
 option csharp_namespace = "Utos.Workflow.V1";
 
 // ============================================================================
@@ -25,6 +27,8 @@ message WorkflowActivity {
 message Transition {
   // Template condition expression (e.g., "{{ output.count > 10 }}")
   // If empty/omitted, transition always executes (default/fallback transition)
+  // Available context: `input` (data the source activity received),
+  // `output` (raw output from the source activity's execution)
   optional string condition = 1;
 
   // Target definition - what to do when this transition is taken
@@ -36,21 +40,28 @@ message TransitionTarget {
   // Activity name or reserved keyword ("end", "error")
   string name = 1;
 
-  // Optional: Override input for the target activity (future use)
-  // optional ExecutionPayload input = 2;
+  // Transform that produces the target activity's `input` context.
+  // Leaf string values may contain {{ }} template expressions.
+  // Available context: `input` (data the source activity received),
+  // `output` (raw output from the source activity's execution).
+  // If omitted, the source activity's raw output passes through as-is.
+  optional google.protobuf.Struct input = 2;
 }
 
 // Configuration for HTTP activities
+// String fields support {{ input.x }} template expressions to reference
+// the data this activity received (workflow input for the start activity,
+// or the preceding transition's transform result for subsequent activities).
 message HttpActivityConfig {
   // HTTP method (e.g., "GET", "POST", "PUT", "DELETE")
   string method = 1;
 
-  // Target URL (supports basic templating)
+  // Target URL — supports {{ input.x }} templates
   string url = 2;
 
-  // HTTP headers
+  // HTTP headers — values support {{ input.x }} templates
   map<string, string> headers = 3;
 
-  // Request body (ignored for GET/DELETE)
+  // Request body (ignored for GET/DELETE) — supports {{ input.x }} templates
   optional string body = 4;
 }
