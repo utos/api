@@ -5,6 +5,20 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.7]
+
+### Added
+- `WorkflowActivityConfig` activity type for single sub-workflow invocation
+- `PromiseActivityConfig` activity type for concurrent fan-out (`all`, `any`, `race`, `count` modes)
+- `PromiseBranch` message with conditional (`condition`) and dynamic (`for_each`) fan-out support
+- `ForEachConfig` message for dynamic branch expansion over a collection
+- `WorkflowActivity.on_failure` field for general failure handling across all activity types
+- `TransitionRule.return` action to return data and end an execution path
+
+### Changed
+- **BREAKING**: Renamed `Transition` to `TransitionRule`
+- **BREAKING**: `TransitionRule` now uses `oneof action` with `transition` (TransitionTarget) or `return` (Struct) instead of a direct `target` field
+
 ## [0.0.6] - 2026-02-12
 
 ### Changed
