@@ -15,24 +15,37 @@ message WorkflowActivity {
   // Transitions to execute after successful completion
   // Evaluated in order; first matching condition wins
   // If no transitions match or list is empty, workflow completes
-  repeated Transition on_success = 1;
+  repeated TransitionRule on_success = 1;
+
+  // Transitions to execute after a failure
+  // Evaluated in order; first matching condition wins
+  // If no transitions match or list is empty, the error propagates
+  repeated TransitionRule on_failure = 2;
 
   // Activity-specific configuration — exactly one must be set
   oneof config {
     HttpActivityConfig http = 10;
+    WorkflowActivityConfig workflow = 11;
+    PromiseActivityConfig promise = 12;
   }
 }
 
-// Defines a conditional transition to another activity
-message Transition {
+// Defines a conditional transition rule with an action (transition or return)
+message TransitionRule {
   // Template condition expression (e.g., "{{ output.count > 10 }}")
-  // If empty/omitted, transition always executes (default/fallback transition)
+  // If empty/omitted, rule always executes (default/fallback rule)
   // Available context: `input` (data the source activity received),
   // `output` (raw output from the source activity's execution)
   optional string condition = 1;
 
-  // Target definition - what to do when this transition is taken
-  TransitionTarget target = 2;
+  // Action to take when this rule matches
+  oneof action {
+    // Transition to another activity
+    TransitionTarget transition = 2;
+
+    // Return data and end this execution path
+    google.protobuf.Struct return = 3;
+  }
 }
 
 // Defines the target of a transition
@@ -47,6 +60,10 @@ message TransitionTarget {
   // If omitted, the source activity's raw output passes through as-is.
   optional google.protobuf.Struct input = 2;
 }
+
+// ============================================================================
+// Activity Configurations
+// ============================================================================
 
 // Configuration for HTTP activities
 // String fields support {{ input.x }} template expressions to reference
@@ -64,4 +81,60 @@ message HttpActivityConfig {
 
   // Request body (ignored for GET/DELETE) — supports {{ input.x }} templates
   optional string body = 4;
+}
+
+// Configuration for sub-workflow invocation
+message WorkflowActivityConfig {
+  // Workflow reference — dependency alias or inline identifier
+  string workflow = 1;
+
+  // Activity within the sub-workflow to start execution at
+  string start_activity = 2;
+
+  // Input data passed to the sub-workflow
+  // Leaf string values may contain {{ input.x }} template expressions.
+  google.protobuf.Struct input = 3;
+}
+
+// Configuration for concurrent fan-out (promise) activities
+message PromiseActivityConfig {
+  // Completion mode — operates on *started* branches (after condition filtering):
+  //   "all"   — all must succeed; fails if any branch fails
+  //   "any"   — resolves on first success; fails if all branches fail
+  //   "race"  — resolves on first settlement (success or failure); result propagates
+  //   "count" — resolves when required_count branches succeed; fails if unreachable
+  string mode = 1;
+
+  // Number of branches that must succeed — only used when mode is "count"
+  int32 required_count = 2;
+
+  // Branches to execute concurrently
+  repeated PromiseBranch branches = 3;
+}
+
+// A single branch within a promise activity
+// Supports static, conditional, and dynamic (for_each) branches
+message PromiseBranch {
+  // Key in the promise output map (e.g., "pricing")
+  // Supports {{ alias.x }} templates when combined with for_each
+  string name = 1;
+
+  // Optional; expands this branch once per item in the collection
+  optional ForEachConfig for_each = 2;
+
+  // Optional; skip this branch if the condition evaluates to false
+  // Per-item evaluation when combined with for_each
+  optional string condition = 3;
+
+  // Which activity to start and input mapping for this branch
+  TransitionTarget target = 4;
+}
+
+// Configuration for dynamic branch expansion over a collection
+message ForEachConfig {
+  // Template expression that resolves to an array (e.g., "{{ input.addons }}")
+  string collection = 1;
+
+  // Variable name for the current item (e.g., "item")
+  string alias = 2;
 }
