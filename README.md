@@ -17,21 +17,14 @@ This repository contains the canonical API definitions for:
 | `utos.daemon.v1` | gRPC service for workflow execution |
 | `utos.registry.v1` | Registry service (planned) |
 
-## Using the API
+## SDKs
 
-Generated SDKs are available via [Buf Schema Registry](https://buf.build/utos/api):
+Generated SDKs are published per language from their own repositories (each
+subscribes to this repo's `vX.Y.Z` release tags). Install them from the native
+package registry for your language — no Buf Schema Registry account or custom
+source required.
 
-### .NET
-```bash
-dotnet nuget add source "https://buf.build/gen/nuget" --name "BSR"
-dotnet add package Buf.Build.Gen.Utos.Api.Grpc.Csharp
-```
-
-### Local Generation
-```bash
-npm install @bufbuild/buf
-npx buf generate
-```
+- **.NET** — [utos/sdk-dotnet](https://github.com/utos/sdk-dotnet) (`Utos.Workflow`, `Utos.Daemon.Client`, `Utos.Daemon.Server` on nuget.org)
 
 ## Related Projects
 
