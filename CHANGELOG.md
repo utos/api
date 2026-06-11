@@ -5,6 +5,18 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Distribution moved off the Buf Schema Registry. `buf push` is removed from the
+  release workflow; a release is now the `v{version}` git tag plus a
+  `repository_dispatch` notification (`spec-released`) to the auto-discovered
+  `utos/sdk-*` repos, which regenerate and publish per language — .NET via
+  [utos/sdk-dotnet](https://github.com/utos/sdk-dotnet) (`Utos.Workflow`,
+  `Utos.Daemon.Client`, `Utos.Daemon.Server` on nuget.org). `buf lint` and
+  breaking-change detection are unchanged. Local `buf.gen.yaml`/`gen/` removed
+  (generation now lives in the SDK repos).
+
 ## [0.0.7] - 2026-03-04
 
 ### Added

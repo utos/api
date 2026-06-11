@@ -1,12 +1,23 @@
 name: Release
 
+# Finalizes a spec release: extracts the version from CHANGELOG.md, creates the git tag
+# `v{version}`, then NOTIFIES every utos/sdk-* repo via repository_dispatch so they
+# regenerate and publish. This repo still publishes no packages itself.
+#
+# SDK repos are discovered at runtime (no hardcoded names): a GitHub App token lists the
+# org repos it can access and we dispatch to those matching `utos/sdk-*`. A new SDK repo
+# is picked up automatically — this workflow never needs editing per-SDK.
+#
+# Requires (org GitHub App with Contents:write + Metadata:read, installed org-wide):
+#   secrets.APP_ID, secrets.APP_PRIVATE_KEY
+
 on:
   push:
     branches: [main]
 
 jobs:
   release:
-    name: Tag and publish
+    name: Tag release
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Needed to create tags
@@ -14,13 +25,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install buf
-        run: npm install @bufbuild/buf
 
       - name: Extract version from CHANGELOG.md
         id: version
@@ -51,8 +55,30 @@ jobs:
           git tag "v${{ steps.version.outputs.version }}"
           git push origin "v${{ steps.version.outputs.version }}"
 
-      - name: Publish to BSR
+      # --- Notify SDK repos (utos/sdk-*) -----------------------------------------
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}   # all org repos the app is installed on
+
+      - name: Dispatch spec-released to SDK repos
         env:
-          BUF_TOKEN: ${{ secrets.BUF_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA: ${{ github.sha }}
         run: |
-          npx buf push
+          set -euo pipefail
+          repos=$(gh api --paginate /installation/repositories \
+                    --jq '.repositories[].full_name' | grep -E '^${{ github.repository_owner }}/sdk-' || true)
+          if [ -z "$repos" ]; then
+            echo "::notice::No ${{ github.repository_owner }}/sdk-* repos to notify."
+            exit 0
+          fi
+          for r in $repos; do
+            echo "Dispatching spec-released (v$VERSION) to $r"
+            printf '{"event_type":"spec-released","client_payload":{"version":"%s","sha":"%s","tag":"v%s"}}' \
+              "$VERSION" "$SHA" "$VERSION" | gh api -X POST "repos/$r/dispatches" --input -
+          done
