@@ -1,10 +1,15 @@
 name: Release
 
-# Finalizes a spec release: extracts the version from CHANGELOG.md and creates the
-# git tag `v{version}`. That is the entire release — there is no package publish here.
+# Finalizes a spec release: extracts the version from CHANGELOG.md, creates the git tag
+# `v{version}`, then NOTIFIES every utos/sdk-* repo via repository_dispatch so they
+# regenerate and publish. This repo still publishes no packages itself.
 #
-# SDK repos (e.g. utos/sdk-dotnet) SUBSCRIBE to these tags and publish to their own
-# package registries. This repo has no knowledge of any SDK and holds no SDK secrets.
+# SDK repos are discovered at runtime (no hardcoded names): a GitHub App token lists the
+# org repos it can access and we dispatch to those matching `utos/sdk-*`. A new SDK repo
+# is picked up automatically — this workflow never needs editing per-SDK.
+#
+# Requires (org GitHub App with Contents:write + Metadata:read, installed org-wide):
+#   secrets.APP_ID, secrets.APP_PRIVATE_KEY
 
 on:
   push:
@@ -49,3 +54,31 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "v${{ steps.version.outputs.version }}"
           git push origin "v${{ steps.version.outputs.version }}"
+
+      # --- Notify SDK repos (utos/sdk-*) -----------------------------------------
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}   # all org repos the app is installed on
+
+      - name: Dispatch spec-released to SDK repos
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          repos=$(gh api --paginate /installation/repositories \
+                    --jq '.repositories[].full_name' | grep -E '^${{ github.repository_owner }}/sdk-' || true)
+          if [ -z "$repos" ]; then
+            echo "::notice::No ${{ github.repository_owner }}/sdk-* repos to notify."
+            exit 0
+          fi
+          for r in $repos; do
+            echo "Dispatching spec-released (v$VERSION) to $r"
+            printf '{"event_type":"spec-released","client_payload":{"version":"%s","sha":"%s","tag":"v%s"}}' \
+              "$VERSION" "$SHA" "$VERSION" | gh api -X POST "repos/$r/dispatches" --input -
+          done
