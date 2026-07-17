@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package utos.workflow.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 
 option csharp_namespace = "Utos.Workflow.V1";
@@ -27,6 +28,7 @@ message WorkflowActivity {
     HttpActivityConfig http = 10;
     WorkflowActivityConfig workflow = 11;
     PromiseActivityConfig promise = 12;
+    TimerActivityConfig timer = 13;
   }
 }
 
@@ -35,7 +37,8 @@ message TransitionRule {
   // Template condition expression (e.g., "{{ output.count > 10 }}")
   // If empty/omitted, rule always executes (default/fallback rule)
   // Available context: `input` (data the source activity received),
-  // `output` (raw output from the source activity's execution)
+  // `output` (raw output from the source activity's execution),
+  // `env` (the run's ambient environment map, available to every activity)
   optional string condition = 1;
 
   // Action to take when this rule matches
@@ -50,13 +53,18 @@ message TransitionRule {
 
 // Defines the target of a transition
 message TransitionTarget {
-  // Activity name or reserved keyword ("end", "error")
+  // Activity name or reserved keyword ("end", "error").
+  // The name may reference an already-visited activity — a back-edge — which
+  // forms a loop (e.g. poll-inbox -> wait -> poll-inbox). A loop with no rule
+  // transitioning to "end" (or a `return` action) runs until the execution is
+  // cancelled, expressing an intentionally infinite loop such as a poller.
   string name = 1;
 
   // Transform that produces the target activity's `input` context.
   // Leaf string values may contain {{ }} template expressions.
   // Available context: `input` (data the source activity received),
-  // `output` (raw output from the source activity's execution).
+  // `output` (raw output from the source activity's execution),
+  // `env` (the run's ambient environment map, available to every activity).
   // If omitted, the source activity's raw output passes through as-is.
   optional google.protobuf.Struct input = 2;
 }
@@ -68,7 +76,8 @@ message TransitionTarget {
 // Configuration for HTTP activities
 // String fields support {{ input.x }} template expressions to reference
 // the data this activity received (workflow input for the start activity,
-// or the preceding transition's transform result for subsequent activities).
+// or the preceding transition's transform result for subsequent activities),
+// and {{ env.x }} to reference the run's ambient environment (e.g. a base URL).
 message HttpActivityConfig {
   // HTTP method (e.g., "GET", "POST", "PUT", "DELETE")
   string method = 1;
@@ -83,6 +92,19 @@ message HttpActivityConfig {
   optional string body = 4;
 }
 
+// Configuration for a timer (durable delay) activity.
+// Pauses this execution path for `duration`, then evaluates transitions
+// normally. The activity's `input` passes through unchanged as its `output`,
+// so a back-edge's TransitionTarget.input can keep threading accumulating loop
+// state across the wait.
+//
+// Combined with a back-edge transition this expresses a polling loop, e.g.
+// poll-inbox (http) -> wait (timer 60s) -> poll-inbox (back-edge).
+message TimerActivityConfig {
+  // How long to pause before this activity's transitions are evaluated.
+  google.protobuf.Duration duration = 1;
+}
+
 // Configuration for sub-workflow invocation
 message WorkflowActivityConfig {
   // Workflow reference — dependency alias or inline identifier
@@ -92,11 +114,33 @@ message WorkflowActivityConfig {
   string start_activity = 2;
 
   // Input data passed to the sub-workflow
-  // Leaf string values may contain {{ input.x }} template expressions.
+  // Leaf string values may contain {{ input.x }} and {{ env.x }} template
+  // expressions. The sub-workflow execution inherits this run's ambient `env`.
   google.protobuf.Struct input = 3;
+
+  // If true, start the sub-workflow but do NOT wait for it to finish
+  // (fire-and-forget). The parent transitions immediately once the child is
+  // started; the child runs as an independent execution with its own lifecycle
+  // and may outlive the parent.
+  //
+  // When detached, the activity's `output` is a handle to the started run —
+  // { "execution_id": "<id>" } — not the child's result (there is no result to
+  // wait for). `on_failure` only catches failures to *start* the child, not the
+  // child's own runtime failures, which the parent never observes.
+  //
+  // Defaults to false: the sub-workflow is awaited and its result becomes this
+  // activity's `output`.
+  bool detached = 4;
 }
 
-// Configuration for concurrent fan-out (promise) activities
+// Configuration for concurrent fan-out (promise) activities.
+//
+// Each promise activity execution is an independent concurrency scope: its
+// branch outputs do not leak across invocations. Branch targets may name a
+// promise or ancestor activity, so nested and looping fan-out (a branch
+// transitioning back into a parent that fans out again) is permitted. Bounding
+// total spawned work — concurrency, recursion depth, execution budget — is a
+// daemon responsibility, not a constraint of this spec.
 message PromiseActivityConfig {
   // Completion mode — operates on *started* branches (after condition filtering):
   //   "all"   — all must succeed; fails if any branch fails
@@ -124,6 +168,7 @@ message PromiseBranch {
 
   // Optional; skip this branch if the condition evaluates to false
   // Per-item evaluation when combined with for_each
+  // May reference `env` (the run's ambient environment) alongside the branch context
   optional string condition = 3;
 
   // Which activity to start and input mapping for this branch
@@ -133,6 +178,7 @@ message PromiseBranch {
 // Configuration for dynamic branch expansion over a collection
 message ForEachConfig {
   // Template expression that resolves to an array (e.g., "{{ input.addons }}")
+  // May also reference `env` (the run's ambient environment)
   string collection = 1;
 
   // Variable name for the current item (e.g., "item")

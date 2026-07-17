@@ -28,8 +28,9 @@ service ExecutionService {
 // ============================================================================
 
 message ScheduleExecutionRequest {
-  // Workflow specification to execute
-  utos.workflow.v1.WorkflowBundle bundle = 1;
+  // Reference to a workflow previously loaded via DefinitionService.LoadWorkflow.
+  // name is required; version omitted means "latest loaded".
+  WorkflowReference workflow = 1;
 
   // Input data passed to the start activity
   ExecutionPayload input = 2;
@@ -37,6 +38,13 @@ message ScheduleExecutionRequest {
   // Name of the activity to start workflow execution from
   // Must match a key in workflow.spec.activities map
   string start_activity = 3;
+
+  // Ambient environment for this run: config available to ALL activities via
+  // {{ env.x }} template expressions (e.g. API base URLs, region, feature
+  // flags), as opposed to `input`, which reaches only the start activity.
+  // Non-secret only — secrets are resolved outside the daemon from a 3rd-party
+  // provider, never passed here.
+  map<string, string> env = 4;
 }
 
 message ScheduleExecutionResponse {
@@ -53,23 +61,29 @@ message GetExecutionRequest {
 }
 
 message GetExecutionResponse {
+  // Former flat workflow_* identity fields, now folded into `workflow`.
+  reserved 4, 13, 14;
+  reserved "workflow_version", "workflow_namespace", "workflow_registry";
+
   // Unique execution identifier
   string id = 1;
 
   // Current execution status
   ExecutionStatus status = 2;
 
-  // Workflow name from metadata
-  string workflow_name = 3;
+  // Identity of the workflow this execution ran, as resolved at schedule time
+  // (version always populated).
+  WorkflowReference workflow = 3;
 
-  // Workflow version from metadata
-  string workflow_version = 4;
-
-  // Full workflow bundle
+  // Full workflow bundle (snapshotted at schedule time — unaffected by later unload)
   utos.workflow.v1.WorkflowBundle bundle = 5;
 
   // Execution input (data passed to start activity)
   optional ExecutionPayload input = 6;
+
+  // Ambient environment this execution ran with (echoed back like `input`;
+  // non-secret only). Empty if none was provided.
+  map<string, string> env = 15;
 
   // When the execution was created
   google.protobuf.Timestamp created_at = 7;
@@ -91,7 +105,10 @@ message GetExecutionResponse {
 }
 
 message ListExecutionsRequest {
-  // Future: Add filtering, pagination
+  // Filter to executions of a single workflow. When set, name selects the
+  // workflow; version omitted matches all loaded versions.
+  // Future: Add pagination.
+  optional WorkflowReference workflow = 1;
 }
 
 message ListExecutionsResponse {

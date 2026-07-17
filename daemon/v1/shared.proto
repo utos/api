@@ -8,6 +8,30 @@ package utos.daemon.v1;
 option csharp_namespace = "Utos.Daemon.V1";
 
 // ============================================================================
+// Shared Definition Types
+// ============================================================================
+
+// Reference to a loaded workflow definition in the daemon's local store.
+//
+// Identity is "[registry/][namespace/]name:version". registry and namespace are
+// omitted for local/unpublished workflows. version is omitted to mean "latest
+// loaded" (the highest semver among loaded versions of that identity).
+message WorkflowReference {
+  // Registry the workflow was published to (e.g., "registry.utos.dev").
+  // Omitted for local/unpublished workflows.
+  optional string registry = 1;
+
+  // Namespace qualifier (e.g., "google"). Omitted for local/unpublished workflows.
+  optional string namespace = 2;
+
+  // Workflow name (required)
+  string name = 3;
+
+  // Semantic version. Omitted means "latest loaded".
+  optional string version = 4;
+}
+
+// ============================================================================
 // Shared Execution Types
 // ============================================================================
 
@@ -18,17 +42,19 @@ message ExecutionPayload {
 }
 
 message ExecutionSummary {
+  // Former flat workflow_* identity fields, now folded into `workflow`.
+  reserved 4, 10, 11;
+  reserved "workflow_version", "workflow_namespace", "workflow_registry";
+
   // Unique execution identifier
   string id = 1;
 
   // Current execution status
   ExecutionStatus status = 2;
 
-  // Workflow name from metadata
-  string workflow_name = 3;
-
-  // Workflow version from metadata
-  string workflow_version = 4;
+  // Identity of the workflow this execution ran, as resolved at schedule time
+  // (version always populated).
+  WorkflowReference workflow = 3;
 
   // When the execution was created
   google.protobuf.Timestamp created_at = 5;

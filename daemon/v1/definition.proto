@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+import "daemon/v1/shared.proto";
+import "workflow/v1/bundle.proto";
+import "google/protobuf/timestamp.proto";
+
+package utos.daemon.v1;
+
+option csharp_namespace = "Utos.Daemon.V1";
+
+// ============================================================================
+// Definition Service (Load / List / Inspect / Unload)
+// ============================================================================
+
+// Manages the daemon's local store of workflow definitions.
+//
+// Definitions are pushed to the daemon (never fetched by it), keyed by their
+// identity "[registry/][namespace/]name:version" derived from the bundle's
+// entry_point workflow metadata. ScheduleExecution then references a loaded
+// definition by name + optional version instead of shipping the whole bundle
+// each run.
+service DefinitionService {
+  // Load (push) a fully-resolved bundle into the daemon's local store.
+  // Identity is derived from the entry_point workflow's metadata.
+  // Re-loading an existing [registry/][namespace/]name:version replaces it.
+  rpc LoadWorkflow(LoadWorkflowRequest) returns (LoadWorkflowResponse);
+
+  // List loaded workflow definitions.
+  rpc ListWorkflows(ListWorkflowsRequest) returns (ListWorkflowsResponse);
+
+  // Inspect a single loaded definition (returns the full bundle).
+  rpc GetWorkflow(GetWorkflowRequest) returns (GetWorkflowResponse);
+
+  // Remove a loaded definition. Does not affect existing executions, which
+  // snapshot their bundle at schedule time.
+  rpc UnloadWorkflow(UnloadWorkflowRequest) returns (UnloadWorkflowResponse);
+}
+
+// ============================================================================
+// Request/Response Messages
+// ============================================================================
+
+message LoadWorkflowRequest {
+  // Fully-resolved bundle to load. Its identity is taken from the metadata of
+  // the entry_point workflow (namespace/name/version).
+  utos.workflow.v1.WorkflowBundle bundle = 1;
+}
+
+message LoadWorkflowResponse {
+  // The concrete identity the bundle was stored under (version always populated).
+  WorkflowReference reference = 1;
+}
+
+message ListWorkflowsRequest {
+  // Future: Add filtering, pagination.
+}
+
+message ListWorkflowsResponse {
+  // Loaded definitions, one entry per [registry/][namespace/]name:version.
+  repeated WorkflowDefinitionSummary workflows = 1;
+}
+
+message WorkflowDefinitionSummary {
+  // Concrete identity of the loaded definition (version always populated).
+  WorkflowReference reference = 1;
+
+  // Human-readable description from the entry_point workflow metadata.
+  optional string description = 2;
+
+  // When the definition was loaded into the store.
+  google.protobuf.Timestamp loaded_at = 3;
+}
+
+message GetWorkflowRequest {
+  // Definition to inspect. name is required; version omitted means "latest loaded".
+  WorkflowReference reference = 1;
+}
+
+message GetWorkflowResponse {
+  // Concrete identity of the returned definition (version always populated).
+  WorkflowReference reference = 1;
+
+  // Full workflow bundle as loaded.
+  utos.workflow.v1.WorkflowBundle bundle = 2;
+
+  // When the definition was loaded into the store.
+  google.protobuf.Timestamp loaded_at = 3;
+}
+
+message UnloadWorkflowRequest {
+  // Definition to remove. name is required; version selects a single version.
+  //
+  // Unlike schedule/get (where omitted version resolves to "latest loaded"),
+  // an omitted version here removes ALL loaded versions of that
+  // [registry/][namespace/]name. Removing only the latest could leave an older,
+  // potentially broken version silently in place.
+  WorkflowReference reference = 1;
+}
+
+message UnloadWorkflowResponse {
+  // Number of definition versions removed (0 if nothing matched; >1 when an
+  // omitted version cleared multiple loaded versions at once).
+  int32 removed = 1;
+}
