@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `TimerActivityConfig` activity type (durable timer) for time-based delays and polling loops
+- `WorkflowActivityConfig.detached` flag for fire-and-forget sub-workflow invocation (start without awaiting)
 - Documented the back-edge loop pattern (transition targeting an already-visited activity) on `TransitionTarget`
 - Clarified that promise branches may loop/nest into promise or ancestor activities, each promise invocation being an isolated scope
 

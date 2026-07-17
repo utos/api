@@ -113,6 +113,20 @@ message WorkflowActivityConfig {
   // Input data passed to the sub-workflow
   // Leaf string values may contain {{ input.x }} template expressions.
   google.protobuf.Struct input = 3;
+
+  // If true, start the sub-workflow but do NOT wait for it to finish
+  // (fire-and-forget). The parent transitions immediately once the child is
+  // started; the child runs as an independent execution with its own lifecycle
+  // and may outlive the parent.
+  //
+  // When detached, the activity's `output` is a handle to the started run —
+  // { "execution_id": "<id>" } — not the child's result (there is no result to
+  // wait for). `on_failure` only catches failures to *start* the child, not the
+  // child's own runtime failures, which the parent never observes.
+  //
+  // Defaults to false: the sub-workflow is awaited and its result becomes this
+  // activity's `output`.
+  bool detached = 4;
 }
 
 // Configuration for concurrent fan-out (promise) activities.
