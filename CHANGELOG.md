@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `WorkflowActivityConfig.detached` flag for fire-and-forget sub-workflow invocation (start without awaiting)
 - Documented the back-edge loop pattern (transition targeting an already-visited activity) on `TransitionTarget`
 - Clarified that promise branches may loop/nest into promise or ancestor activities, each promise invocation being an isolated scope
+- `DefinitionService` (`daemon/v1/definition.proto`) for pushing workflow definitions to the daemon's local store: `LoadWorkflow`, `ListWorkflows`, `GetWorkflow`, `UnloadWorkflow`
+- `WorkflowReference` message (`daemon/v1/shared.proto`) — structured `[registry/][namespace/]name:version` reference to a loaded definition (registry, namespace, and version all optional; version omitted means "latest loaded")
+- `WorkflowMetadata.namespace` and `WorkflowMetadata.registry` (both `optional`) — Docker-style addressing prefixes, omitted for local/unpublished workflows
+- `ListExecutionsRequest.workflow` filter for grouping executions by workflow identity
+
+### Changed
+- **BREAKING**: `ScheduleExecution` is now reference-based — `ScheduleExecutionRequest.bundle` (inline `WorkflowBundle`) is replaced by `workflow` (`WorkflowReference`). Workflows must be loaded via `DefinitionService.LoadWorkflow` before they can be scheduled
+- **BREAKING**: `ExecutionSummary` and `GetExecutionResponse` now carry workflow identity as an embedded `WorkflowReference workflow` field, replacing the flat `workflow_name`/`workflow_version` fields (consistent with the `DefinitionService` responses)
 
 ## [0.0.8] - 2026-06-11
 

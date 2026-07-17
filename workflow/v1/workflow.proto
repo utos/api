@@ -11,6 +11,11 @@ option csharp_namespace = "Utos.Workflow.V1";
 // ============================================================================
 
 // Workflow metadata and versioning information
+//
+// Together these fields form the workflow's identity, Docker-style:
+// "[registry/][namespace/]name:version". A locally-authored workflow is just
+// "name:version"; it gains "namespace/" and "registry/" prefixes only once it
+// has a registry home. Both prefixes are optional and independent.
 message WorkflowMetadata {
   // Workflow name/identifier (e.g., "send-email", "process-payment")
   // Must follow naming convention: lowercase, alphanumeric, hyphens allowed
@@ -21,6 +26,14 @@ message WorkflowMetadata {
 
   // Human-readable description
   optional string description = 3;
+
+  // Namespace qualifier (e.g., "google" in "google/gmail:v1.0.0"). Omitted for
+  // local/unpublished workflows.
+  optional string namespace = 4;
+
+  // Registry the workflow is published to (e.g., "registry.utos.dev"). Omitted
+  // for local/unpublished workflows.
+  optional string registry = 5;
 }
 
 // ============================================================================
