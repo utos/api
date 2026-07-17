@@ -5,6 +5,13 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.9]
+
+### Added
+- `TimerActivityConfig` activity type (durable timer) for time-based delays and polling loops
+- Documented the back-edge loop pattern (transition targeting an already-visited activity) on `TransitionTarget`
+- Clarified that promise branches may loop/nest into promise or ancestor activities, each promise invocation being an isolated scope
+
 ## [0.0.8] - 2026-06-11
 
 ### Changed

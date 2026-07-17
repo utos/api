@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package utos.workflow.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 
 option csharp_namespace = "Utos.Workflow.V1";
@@ -27,6 +28,7 @@ message WorkflowActivity {
     HttpActivityConfig http = 10;
     WorkflowActivityConfig workflow = 11;
     PromiseActivityConfig promise = 12;
+    TimerActivityConfig timer = 13;
   }
 }
 
@@ -50,7 +52,11 @@ message TransitionRule {
 
 // Defines the target of a transition
 message TransitionTarget {
-  // Activity name or reserved keyword ("end", "error")
+  // Activity name or reserved keyword ("end", "error").
+  // The name may reference an already-visited activity — a back-edge — which
+  // forms a loop (e.g. poll-inbox -> wait -> poll-inbox). A loop with no rule
+  // transitioning to "end" (or a `return` action) runs until the execution is
+  // cancelled, expressing an intentionally infinite loop such as a poller.
   string name = 1;
 
   // Transform that produces the target activity's `input` context.
@@ -83,6 +89,19 @@ message HttpActivityConfig {
   optional string body = 4;
 }
 
+// Configuration for a timer (durable delay) activity.
+// Pauses this execution path for `duration`, then evaluates transitions
+// normally. The activity's `input` passes through unchanged as its `output`,
+// so a back-edge's TransitionTarget.input can keep threading accumulating loop
+// state across the wait.
+//
+// Combined with a back-edge transition this expresses a polling loop, e.g.
+// poll-inbox (http) -> wait (timer 60s) -> poll-inbox (back-edge).
+message TimerActivityConfig {
+  // How long to pause before this activity's transitions are evaluated.
+  google.protobuf.Duration duration = 1;
+}
+
 // Configuration for sub-workflow invocation
 message WorkflowActivityConfig {
   // Workflow reference — dependency alias or inline identifier
@@ -96,7 +115,14 @@ message WorkflowActivityConfig {
   google.protobuf.Struct input = 3;
 }
 
-// Configuration for concurrent fan-out (promise) activities
+// Configuration for concurrent fan-out (promise) activities.
+//
+// Each promise activity execution is an independent concurrency scope: its
+// branch outputs do not leak across invocations. Branch targets may name a
+// promise or ancestor activity, so nested and looping fan-out (a branch
+// transitioning back into a parent that fans out again) is permitted. Bounding
+// total spawned work — concurrency, recursion depth, execution budget — is a
+// daemon responsibility, not a constraint of this spec.
 message PromiseActivityConfig {
   // Completion mode — operates on *started* branches (after condition filtering):
   //   "all"   — all must succeed; fails if any branch fails
