@@ -38,6 +38,13 @@ message ScheduleExecutionRequest {
   // Name of the activity to start workflow execution from
   // Must match a key in workflow.spec.activities map
   string start_activity = 3;
+
+  // Ambient environment for this run: config available to ALL activities via
+  // {{ env.x }} template expressions (e.g. API base URLs, region, feature
+  // flags), as opposed to `input`, which reaches only the start activity.
+  // Non-secret only — secrets are resolved outside the daemon from a 3rd-party
+  // provider, never passed here.
+  map<string, string> env = 4;
 }
 
 message ScheduleExecutionResponse {
@@ -73,6 +80,10 @@ message GetExecutionResponse {
 
   // Execution input (data passed to start activity)
   optional ExecutionPayload input = 6;
+
+  // Ambient environment this execution ran with (echoed back like `input`;
+  // non-secret only). Empty if none was provided.
+  map<string, string> env = 15;
 
   // When the execution was created
   google.protobuf.Timestamp created_at = 7;

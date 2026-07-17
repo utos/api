@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `WorkflowReference` message (`daemon/v1/shared.proto`) — structured `[registry/][namespace/]name:version` reference to a loaded definition (registry, namespace, and version all optional; version omitted means "latest loaded")
 - `WorkflowMetadata.namespace` and `WorkflowMetadata.registry` (both `optional`) — Docker-style addressing prefixes, omitted for local/unpublished workflows
 - `ListExecutionsRequest.workflow` filter for grouping executions by workflow identity
+- Per-run environment: `map<string,string> env` on `ScheduleExecutionRequest` (echoed back on `GetExecutionResponse`) — ambient, non-secret config available to all activities via `{{ env.x }}` template expressions, distinct from `input` (which reaches only the start activity)
 
 ### Changed
 - **BREAKING**: `ScheduleExecution` is now reference-based — `ScheduleExecutionRequest.bundle` (inline `WorkflowBundle`) is replaced by `workflow` (`WorkflowReference`). Workflows must be loaded via `DefinitionService.LoadWorkflow` before they can be scheduled
