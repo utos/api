@@ -1,0 +1,34 @@
+name: Sync main to dev
+
+# After a dev -> main release merge, merge main back into dev so dev never shows as
+# "behind" main. Without this, each release merge commit lives only on main and dev
+# accumulates a growing "N behind" count.
+#
+# Pushes to dev (not main), so it never re-triggers itself; pushes made with the
+# default GITHUB_TOKEN also do not trigger further workflow runs.
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: sync-main-to-dev
+  cancel-in-progress: false
+
+jobs:
+  back-merge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # need full history for both branches
+
+      - name: Merge main into dev
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout dev
+          git merge origin/main --no-edit
+          git push origin dev
