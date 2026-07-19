@@ -34,9 +34,9 @@ message WorkflowReference {
   optional string version = 4;
 
   // OCI-style content digest of the resolved WorkflowBundle this reference
-  // identifies, e.g. "sha256:<hex>", computed over a canonical serialization of
-  // the bundle. Stable content identity, independent of the mutable name:version
-  // key.
+  // identifies, e.g. "sha256:<hex>", computed over the canonical serialization
+  // defined in docs/canonical-bundle-digest.md. Stable content identity,
+  // independent of the mutable name:version key.
   //
   // On requests (schedule / get / unload / list filter): optional guard, not a
   // standalone selector. The daemon resolves by name(+version) as usual, then
