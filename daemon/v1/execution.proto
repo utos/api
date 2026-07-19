@@ -20,6 +20,15 @@ service ExecutionService {
 
   // List all executions
   rpc ListExecutions(ListExecutionsRequest) returns (ListExecutionsResponse);
+
+  // Delete a terminal execution's record (its summary, input/env, and the
+  // snapshotted bundle). Permitted only when the execution is terminal
+  // (COMPLETED or FAILED); a SCHEDULED or ACTIVE execution returns
+  // FAILED_PRECONDITION and must be cancelled first (cancellation is a separate
+  // concern, not yet defined). Unknown execution_id returns NOT_FOUND. Does not
+  // affect any detached sub-workflow executions this run started — those are
+  // independent top-level executions with their own records.
+  rpc DeleteExecution(DeleteExecutionRequest) returns (DeleteExecutionResponse);
 }
 
 // ============================================================================
@@ -98,4 +107,13 @@ message ListExecutionsRequest {
 message ListExecutionsResponse {
   // Array of execution summaries
   repeated ExecutionSummary executions = 1;
+}
+
+message DeleteExecutionRequest {
+  // Unique execution identifier
+  string execution_id = 1;
+}
+
+message DeleteExecutionResponse {
+  // Empty; reserved for future fields.
 }
