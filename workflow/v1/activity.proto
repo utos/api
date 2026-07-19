@@ -132,6 +132,11 @@ message WorkflowActivityConfig {
   // wait for). `on_failure` only catches failures to *start* the child, not the
   // child's own runtime failures, which the parent never observes.
   //
+  // A detached child runs the sub-workflow content snapshotted in the parent's
+  // bundle (same content lineage / digest family), not a re-resolution against
+  // the current store, so it is reproducible and its recorded workflow.digest
+  // derives from the parent's snapshot.
+  //
   // Defaults to false: the sub-workflow is awaited and its result becomes this
   // activity's `output`.
   bool detached = 4;

@@ -22,7 +22,10 @@ option csharp_namespace = "Utos.Daemon.V1";
 service DefinitionService {
   // Load (push) a fully-resolved bundle into the daemon's local store.
   // Identity is derived from the entry_point workflow's metadata.
-  // Re-loading an existing [registry/][namespace/]name:version replaces it.
+  // Re-loading an existing [registry/][namespace/]name:version replaces it
+  // (generally with a different content digest); existing executions are
+  // unaffected and their ExecutionSummary.workflow.digest keeps identifying the
+  // pre-replacement content.
   rpc LoadWorkflow(LoadWorkflowRequest) returns (LoadWorkflowResponse);
 
   // List loaded workflow definitions.
@@ -31,8 +34,11 @@ service DefinitionService {
   // Inspect a single loaded definition (returns the full bundle).
   rpc GetWorkflow(GetWorkflowRequest) returns (GetWorkflowResponse);
 
-  // Remove a loaded definition. Does not affect existing executions, which
-  // snapshot their bundle at schedule time.
+  // Remove a loaded definition. Safe against history: it only prevents NEW
+  // schedules — running and finished executions are unaffected, since each
+  // snapshots its own bundle at schedule time. Unlike Docker's refuse-in-use
+  // `docker rmi`, no force flag is needed: executions share nothing with the
+  // store, so removal can never corrupt an in-flight run.
   rpc UnloadWorkflow(UnloadWorkflowRequest) returns (UnloadWorkflowResponse);
 }
 
@@ -47,7 +53,8 @@ message LoadWorkflowRequest {
 }
 
 message LoadWorkflowResponse {
-  // The concrete identity the bundle was stored under (version always populated).
+  // The concrete identity the bundle was stored under (version and digest always
+  // populated; digest is the content identity of the loaded bundle).
   WorkflowReference reference = 1;
 }
 
@@ -61,7 +68,8 @@ message ListWorkflowsResponse {
 }
 
 message WorkflowDefinitionSummary {
-  // Concrete identity of the loaded definition (version always populated).
+  // Concrete identity of the loaded definition (version and digest always
+  // populated; digest reveals when a name:version's content has changed).
   WorkflowReference reference = 1;
 
   // Human-readable description from the entry_point workflow metadata.
@@ -72,12 +80,15 @@ message WorkflowDefinitionSummary {
 }
 
 message GetWorkflowRequest {
-  // Definition to inspect. name is required; version omitted means "latest loaded".
+  // Definition to inspect. name is required; version omitted means "latest
+  // loaded". Optional digest asserts the resolved definition's content matches;
+  // mismatch is an error.
   WorkflowReference reference = 1;
 }
 
 message GetWorkflowResponse {
-  // Concrete identity of the returned definition (version always populated).
+  // Concrete identity of the returned definition (version and digest always
+  // populated; digest is the content identity of the returned bundle).
   WorkflowReference reference = 1;
 
   // Full workflow bundle as loaded.
@@ -94,6 +105,10 @@ message UnloadWorkflowRequest {
   // an omitted version here removes ALL loaded versions of that
   // [registry/][namespace/]name. Removing only the latest could leave an older,
   // potentially broken version silently in place.
+  //
+  // If digest is set, removal is instead narrowed to the single loaded version
+  // whose content matches that digest — even when version is omitted (a content
+  // pin is unambiguous, so it overrides the omitted-version "remove ALL" rule).
   WorkflowReference reference = 1;
 }
 

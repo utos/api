@@ -28,7 +28,11 @@ service ExecutionService {
 
 message ScheduleExecutionRequest {
   // Reference to a workflow previously loaded via DefinitionService.LoadWorkflow.
-  // name is required; version omitted means "latest loaded".
+  // name is required; version omitted means "latest loaded". Optional digest
+  // pins the run to exact bundle content: the daemon resolves name(+version),
+  // then requires the resolved digest to match, failing the schedule on
+  // mismatch — so a caller can guarantee it scheduled the exact content it
+  // intended even if the store was re-loaded.
   WorkflowReference workflow = 1;
 
   // Input data passed to the start activity
@@ -69,7 +73,9 @@ message GetExecutionResponse {
   // Summary view: identity, status, timing, and error for this execution.
   ExecutionSummary summary = 17;
 
-  // Full workflow bundle (snapshotted at schedule time — unaffected by later unload).
+  // Full workflow bundle (snapshotted at schedule time — unaffected by later
+  // unload). `summary.workflow.digest` is the content identity of this exact
+  // bundle; the two are guaranteed consistent within a single response.
   utos.workflow.v1.WorkflowBundle bundle = 5;
 
   // Execution input (data passed to the start activity).
@@ -82,7 +88,9 @@ message GetExecutionResponse {
 
 message ListExecutionsRequest {
   // Filter to executions of a single workflow. When set, name selects the
-  // workflow; version omitted matches all loaded versions.
+  // workflow; version omitted matches all loaded versions. When digest is set,
+  // filter to executions whose snapshotted content matches that exact digest —
+  // more precise than the mutable version (e.g. every run of one specific build).
   // Future: Add pagination.
   optional WorkflowReference workflow = 1;
 }
