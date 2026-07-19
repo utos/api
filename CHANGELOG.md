@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **BREAKING**: Execution failures are now structured — the `error_message` string on `GetExecutionResponse` and `ExecutionSummary` is replaced by a `WorkflowError error` field (old field numbers and names reserved)
 - **BREAKING**: `WatchExecutionRequest.tail` and `.after` are now grouped in a `oneof position`, enforcing their documented mutual exclusivity (setting one clears the other; neither remains valid)
-- `WorkflowError.details` is now `google.protobuf.Struct` instead of a JSON-encoded `string`, consistent with the structured types used elsewhere in the API
+- **BREAKING**: `WorkflowError.details` is now `google.protobuf.Struct` instead of a JSON-encoded `string` (wire-incompatible field type change), consistent with the structured types used elsewhere in the API
 
 ## [0.0.9] - 2026-07-17
 
