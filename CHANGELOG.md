@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Structured execution errors: `GetExecutionResponse`, `ExecutionSummary`, and `WatchExecutionResponse` now carry a `WorkflowError error` field (`WatchExecutionResponse.error` is set on the transition to `FAILED`). `WorkflowError` was previously defined but unreferenced
 - Documented the invariant that each `WorkflowBundle.workflows` key must equal the canonical identity derived from its value's `WorkflowMetadata`
 - `WorkflowReference.digest` — optional OCI-style content digest (e.g. `"sha256:<hex>"`) alongside the mutable `name:version` key. On resolved references (execution records, `DefinitionService` responses) the daemon populates it with the exact bundle content identity, so an execution records what it actually ran and snapshot-vs-store drift is detectable; on requests it is an optional exact-content guard (resolve by name/version, then assert digest). Detached sub-workflows run the parent's snapshotted content (recorded digest derives from the snapshot), and `UnloadWorkflow` is documented as safe against running/finished executions
+- Documented that `end`/`error` are reserved terminal keywords and may not be used as activity names (resolving the `TransitionTarget.name` activity-vs-keyword collision)
 
 ### Changed
 - **BREAKING**: Execution failures are now structured — the `error_message` string on `GetExecutionResponse` and `ExecutionSummary` is replaced by a `WorkflowError error` field (old field numbers and names reserved)

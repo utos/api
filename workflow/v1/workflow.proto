@@ -73,6 +73,8 @@ message WorkflowSpec {
   // (see WorkflowBundle.workflows).
   map<string, string> dependencies = 1;
 
-  // Map of activity name to activity definition
+  // Map of activity name to activity definition. Activity names (the keys) are
+  // referenced by TransitionTarget.name; the terminal keywords "end" and "error"
+  // are reserved and may not be used as activity names.
   map<string, WorkflowActivity> activities = 2;
 }

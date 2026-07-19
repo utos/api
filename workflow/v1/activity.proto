@@ -32,7 +32,7 @@ message WorkflowActivity {
   }
 }
 
-// Defines a conditional transition rule with an action (transition or return)
+// Defines a conditional transition rule with an action (transition or result)
 message TransitionRule {
   // Template condition expression (e.g., "{{ output.count > 10 }}")
   // If empty/omitted, rule always executes (default/fallback rule)
@@ -53,10 +53,13 @@ message TransitionRule {
 
 // Defines the target of a transition
 message TransitionTarget {
-  // Activity name or reserved keyword ("end", "error").
+  // Activity name, or a reserved terminal keyword: "end" (end this path
+  // successfully) or "error" (end this path with an error). The keywords are
+  // reserved — an activity in WorkflowSpec.activities may not be named "end" or
+  // "error" — so a target name is never ambiguous.
   // The name may reference an already-visited activity — a back-edge — which
   // forms a loop (e.g. poll-inbox -> wait -> poll-inbox). A loop with no rule
-  // transitioning to "end" (or a `return` action) runs until the execution is
+  // transitioning to "end" (or a `result` action) runs until the execution is
   // cancelled, expressing an intentionally infinite loop such as a poller.
   string name = 1;
 
