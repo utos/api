@@ -81,8 +81,12 @@ enum ExecutionStatus {
   EXECUTION_STATUS_UNSPECIFIED = 0;
   EXECUTION_STATUS_SCHEDULED = 1;
   EXECUTION_STATUS_ACTIVE = 2;
-  // EXECUTION_STATUS_SUSPENDED = 3;  // Future: Waiting for external event/webhook/human
   EXECUTION_STATUS_COMPLETED = 10;    // Terminal: success
   EXECUTION_STATUS_FAILED = 11;       // Terminal: failure
-  // EXECUTION_STATUS_CANCELLED = 12; // Future: Terminal user/system cancelled
+
+  // Reserved for planned values (un-reserve when implemented):
+  //   3  — SUSPENDED: awaiting an external event/webhook/human
+  //   12 — CANCELLED: terminal, user- or system-initiated
+  reserved 3, 12;
+  reserved "EXECUTION_STATUS_SUSPENDED", "EXECUTION_STATUS_CANCELLED";
 }
