@@ -47,7 +47,7 @@ message TransitionRule {
     TransitionTarget transition = 2;
 
     // Return data and end this execution path
-    google.protobuf.Struct return = 3;
+    google.protobuf.Struct result = 3;
   }
 }
 

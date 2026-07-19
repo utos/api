@@ -26,6 +26,10 @@ message WorkflowBundle {
   // Examples: "registry.example.com/acme/send-email:v1.0.0",
   // "acme/send-email:v1.0.0", "send-email:1.0.0" (a local/unpublished workflow).
   //
+  // Each key MUST equal the canonical identity of its value, derived from that
+  // workflow's WorkflowMetadata; a bundle whose key and metadata disagree is
+  // invalid and may be rejected.
+  //
   // Each WorkflowActivityConfig.workflow in the bundle is one of these keys,
   // naming the sub-workflow that activity invokes.
   map<string, Workflow> workflows = 2;

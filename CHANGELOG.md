@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Documented the canonical workflow identity key — `[registry/][namespace/]name:version`, derived from `WorkflowMetadata` — used to key `WorkflowBundle.workflows`, and clarified that `WorkflowActivityConfig.workflow` is a source-format dependency alias resolved to that identity key in the built bundle (`WorkflowSpec.dependencies` documented as source-format alias declarations)
 - Structured execution errors: `GetExecutionResponse`, `ExecutionSummary`, and `WatchExecutionResponse` now carry a `WorkflowError error` field (`WatchExecutionResponse.error` is set on the transition to `FAILED`). `WorkflowError` was previously defined but unreferenced
+- Documented the invariant that each `WorkflowBundle.workflows` key must equal the canonical identity derived from its value's `WorkflowMetadata`
 
 ### Changed
 - **BREAKING**: Execution failures are now structured — the `error_message` string on `GetExecutionResponse` and `ExecutionSummary` is replaced by a `WorkflowError error` field (old field numbers and names reserved)
@@ -17,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: `WorkflowError.details` is now `google.protobuf.Struct` instead of a JSON-encoded `string` (wire-incompatible field type change), consistent with the structured types used elsewhere in the API
 - Reserved the planned `ExecutionStatus` slots `3` (`SUSPENDED`) and `12` (`CANCELLED`) — numbers and names — replacing the commented-out placeholders, so the slots are protoc-protected from accidental reuse
 - **BREAKING**: `GetExecutionResponse` now embeds `ExecutionSummary summary` instead of re-declaring the execution's identity/status/timing/error fields. The flat fields (`id`, `status`, `workflow`, `created_at`, `scheduled_at`, `started_at`, `completed_at`, `failed_at`, `error`) are removed and read via `summary`; `bundle`, `input`, and `env` remain. Terminal time is now the single `summary.finished_at` (with `status` distinguishing success vs failure), replacing `completed_at`/`failed_at`
+- **BREAKING**: Renamed `TransitionRule.return` to `result` to avoid a reserved word in target languages (notably Python); field number unchanged, binary-compatible
+- **BREAKING**: `Workflow.api_version` and `Workflow.kind` are now `string` following the k8s GroupVersionKind convention (e.g. `"utos.io/v1"`, `"Workflow"`); the `WorkflowApiVersion`/`WorkflowKind` enums are removed
 
 ## [0.0.9] - 2026-07-17
 
