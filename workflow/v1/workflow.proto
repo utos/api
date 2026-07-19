@@ -57,11 +57,15 @@ message Workflow {
 
 // Complete workflow definition
 message WorkflowSpec {
-  // Sub-workflow dependencies
-  // Key: alias used in activities (e.g., "claude-agent")
-  // Value: reference string - either:
-  //   - Registry ref: "registry.utos.dev/namespace/name:version"
+  // Source-format dependency declarations: each entry binds an alias to a
+  // sub-workflow reference.
+  // Key: an alias, local to this workflow, that its activities use to name the
+  //   dependency (e.g., "emailer").
+  // Value: a reference to the dependency — either:
+  //   - Registry ref: "registry.example.com/namespace/name:version"
   //   - Local file: "./path/to/workflow.yaml" (starts with ./ or ../)
+  // In the built bundle, activities name dependencies by canonical identity
+  // (see WorkflowBundle.workflows).
   map<string, string> dependencies = 1;
 
   // Map of activity name to activity definition

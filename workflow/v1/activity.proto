@@ -107,7 +107,11 @@ message TimerActivityConfig {
 
 // Configuration for sub-workflow invocation
 message WorkflowActivityConfig {
-  // Workflow reference — dependency alias or inline identifier
+  // Identifies the sub-workflow to invoke.
+  // In the source format: a dependency alias — a key in this workflow's
+  // WorkflowSpec.dependencies map (e.g. "emailer").
+  // In the built bundle: the sub-workflow's canonical identity — a key in
+  // WorkflowBundle.workflows (e.g. "registry.example.com/acme/send-email:v1.0.0").
   string workflow = 1;
 
   // Activity within the sub-workflow to start execution at

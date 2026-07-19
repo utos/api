@@ -14,10 +14,19 @@ option csharp_namespace = "Utos.Workflow.V1";
 // Created by CLI after resolving all dependencies.
 // This is the "built" format - all workflows are included, no external references.
 message WorkflowBundle {
-  // The workflow to start execution from (key in workflows map)
+  // Canonical identity key of the workflow where execution begins; one of the
+  // keys in `workflows`.
   string entry_point = 1;
 
-  // All resolved workflows by name
-  // Includes the root workflow and all transitive dependencies
+  // The entry-point workflow together with all transitive dependencies, each
+  // keyed by its canonical identity.
+  //
+  // The key is the identity string defined on WorkflowMetadata:
+  //   [registry/][namespace/]name:version
+  // Examples: "registry.example.com/acme/send-email:v1.0.0",
+  // "acme/send-email:v1.0.0", "send-email:1.0.0" (a local/unpublished workflow).
+  //
+  // Each WorkflowActivityConfig.workflow in the bundle is one of these keys,
+  // naming the sub-workflow that activity invokes.
   map<string, Workflow> workflows = 2;
 }
