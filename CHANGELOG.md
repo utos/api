@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: `WatchExecutionRequest.tail` and `.after` are now grouped in a `oneof position`, enforcing their documented mutual exclusivity (setting one clears the other; neither remains valid)
 - **BREAKING**: `WorkflowError.details` is now `google.protobuf.Struct` instead of a JSON-encoded `string` (wire-incompatible field type change), consistent with the structured types used elsewhere in the API
 - Reserved the planned `ExecutionStatus` slots `3` (`SUSPENDED`) and `12` (`CANCELLED`) — numbers and names — replacing the commented-out placeholders, so the slots are protoc-protected from accidental reuse
+- **BREAKING**: `GetExecutionResponse` now embeds `ExecutionSummary summary` instead of re-declaring the execution's identity/status/timing/error fields. The flat fields (`id`, `status`, `workflow`, `created_at`, `scheduled_at`, `started_at`, `completed_at`, `failed_at`, `error`) are removed and read via `summary`; `bundle`, `input`, and `env` remain. Terminal time is now the single `summary.finished_at` (with `status` distinguishing success vs failure), replacing `completed_at`/`failed_at`
 
 ## [0.0.9] - 2026-07-17
 

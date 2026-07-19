@@ -72,8 +72,9 @@ message ExecutionSummary {
   // When the execution completed or failed (whichever happened)
   optional google.protobuf.Timestamp finished_at = 8;
 
-  // Structured failure details; set when status is FAILED. In summaries the
-  // daemon may populate only `code` and `message`, omitting `details`.
+  // Structured failure details; set when status is FAILED. `details` may be
+  // omitted in `ListExecutions` list views and is populated when this summary
+  // is returned inside `GetExecutionResponse`.
   optional utos.workflow.v1.WorkflowError error = 12;
 }
 
