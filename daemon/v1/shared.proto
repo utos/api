@@ -2,6 +2,7 @@ syntax = "proto3";
 
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
+import "workflow/v1/common.proto";
 
 package utos.daemon.v1;
 
@@ -45,6 +46,9 @@ message ExecutionSummary {
   // Former flat workflow_* identity fields, now folded into `workflow`.
   reserved 4, 10, 11;
   reserved "workflow_version", "workflow_namespace", "workflow_registry";
+  // Former flat error_message string, now folded into structured `error`.
+  reserved 9;
+  reserved "error_message";
 
   // Unique execution identifier
   string id = 1;
@@ -68,8 +72,9 @@ message ExecutionSummary {
   // When the execution completed or failed (whichever happened)
   optional google.protobuf.Timestamp finished_at = 8;
 
-  // Error message if execution failed (truncated to 200 chars for list view)
-  optional string error_message = 9;
+  // Structured failure details; set when status is FAILED. In summaries the
+  // daemon may populate only `code` and `message`, omitting `details`.
+  optional utos.workflow.v1.WorkflowError error = 12;
 }
 
 enum ExecutionStatus {

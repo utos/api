@@ -2,6 +2,7 @@ syntax = "proto3";
 
 import "daemon/v1/shared.proto";
 import "workflow/v1/bundle.proto";
+import "workflow/v1/common.proto";
 import "google/protobuf/timestamp.proto";
 
 package utos.daemon.v1;
@@ -64,6 +65,9 @@ message GetExecutionResponse {
   // Former flat workflow_* identity fields, now folded into `workflow`.
   reserved 4, 13, 14;
   reserved "workflow_version", "workflow_namespace", "workflow_registry";
+  // Former flat error_message string, now folded into structured `error`.
+  reserved 12;
+  reserved "error_message";
 
   // Unique execution identifier
   string id = 1;
@@ -100,8 +104,8 @@ message GetExecutionResponse {
   // When the execution failed
   optional google.protobuf.Timestamp failed_at = 11;
 
-  // Error message if execution failed
-  optional string error_message = 12;
+  // Structured failure details; set when status is FAILED.
+  optional utos.workflow.v1.WorkflowError error = 16;
 }
 
 message ListExecutionsRequest {

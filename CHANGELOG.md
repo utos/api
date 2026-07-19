@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Documented the canonical workflow identity key — `[registry/][namespace/]name:version`, derived from `WorkflowMetadata` — used to key `WorkflowBundle.workflows`, and clarified that `WorkflowActivityConfig.workflow` is a source-format dependency alias resolved to that identity key in the built bundle (`WorkflowSpec.dependencies` documented as source-format alias declarations)
+- Structured execution errors: `GetExecutionResponse`, `ExecutionSummary`, and `WatchExecutionResponse` now carry a `WorkflowError error` field (`WatchExecutionResponse.error` is set on the transition to `FAILED`). `WorkflowError` was previously defined but unreferenced
+
+### Changed
+- **BREAKING**: Execution failures are now structured — the `error_message` string on `GetExecutionResponse` and `ExecutionSummary` is replaced by a `WorkflowError error` field (old field numbers and names reserved)
+- `WorkflowError.details` is now `google.protobuf.Struct` instead of a JSON-encoded `string`, consistent with the structured types used elsewhere in the API
 
 ## [0.0.9] - 2026-07-17
 

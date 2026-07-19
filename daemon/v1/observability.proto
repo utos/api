@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 import "daemon/v1/shared.proto";
+import "workflow/v1/common.proto";
 import "google/protobuf/timestamp.proto";
 
 package utos.daemon.v1;
@@ -52,6 +53,9 @@ message WatchExecutionResponse {
 
   // Only set when execution status transitions
   optional ExecutionStatus status = 6;
+
+  // Structured failure details; set on the transition to FAILED.
+  optional utos.workflow.v1.WorkflowError error = 7;
 }
 
 enum LogLevel {
