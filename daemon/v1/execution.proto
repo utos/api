@@ -2,7 +2,6 @@ syntax = "proto3";
 
 import "daemon/v1/shared.proto";
 import "workflow/v1/bundle.proto";
-import "google/protobuf/timestamp.proto";
 
 package utos.daemon.v1;
 
@@ -21,6 +20,15 @@ service ExecutionService {
 
   // List all executions
   rpc ListExecutions(ListExecutionsRequest) returns (ListExecutionsResponse);
+
+  // Delete a terminal execution's record (its summary, input/env, and the
+  // snapshotted bundle). Permitted only when the execution is terminal
+  // (COMPLETED or FAILED); a SCHEDULED or ACTIVE execution returns
+  // FAILED_PRECONDITION and must be cancelled first (cancellation is a separate
+  // concern, not yet defined). Unknown execution_id returns NOT_FOUND. Does not
+  // affect any detached sub-workflow executions this run started — those are
+  // independent top-level executions with their own records.
+  rpc DeleteExecution(DeleteExecutionRequest) returns (DeleteExecutionResponse);
 }
 
 // ============================================================================
@@ -29,7 +37,11 @@ service ExecutionService {
 
 message ScheduleExecutionRequest {
   // Reference to a workflow previously loaded via DefinitionService.LoadWorkflow.
-  // name is required; version omitted means "latest loaded".
+  // name is required; version omitted means "latest loaded". Optional digest
+  // pins the run to exact bundle content: the daemon resolves name(+version),
+  // then requires the resolved digest to match, failing the schedule on
+  // mismatch — so a caller can guarantee it scheduled the exact content it
+  // intended even if the store was re-loaded.
   WorkflowReference workflow = 1;
 
   // Input data passed to the start activity
@@ -61,52 +73,33 @@ message GetExecutionRequest {
 }
 
 message GetExecutionResponse {
-  // Former flat workflow_* identity fields, now folded into `workflow`.
-  reserved 4, 13, 14;
-  reserved "workflow_version", "workflow_namespace", "workflow_registry";
+  // Former flat fields, now provided via the embedded `summary`.
+  reserved 1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14, 16;
+  reserved "id", "status", "workflow", "created_at", "scheduled_at",
+    "started_at", "completed_at", "failed_at", "error",
+    "workflow_version", "workflow_namespace", "workflow_registry", "error_message";
 
-  // Unique execution identifier
-  string id = 1;
+  // Summary view: identity, status, timing, and error for this execution.
+  ExecutionSummary summary = 17;
 
-  // Current execution status
-  ExecutionStatus status = 2;
-
-  // Identity of the workflow this execution ran, as resolved at schedule time
-  // (version always populated).
-  WorkflowReference workflow = 3;
-
-  // Full workflow bundle (snapshotted at schedule time — unaffected by later unload)
+  // Full workflow bundle (snapshotted at schedule time — unaffected by later
+  // unload). `summary.workflow.digest` is the content identity of this exact
+  // bundle; the two are guaranteed consistent within a single response.
   utos.workflow.v1.WorkflowBundle bundle = 5;
 
-  // Execution input (data passed to start activity)
+  // Execution input (data passed to the start activity).
   optional ExecutionPayload input = 6;
 
   // Ambient environment this execution ran with (echoed back like `input`;
   // non-secret only). Empty if none was provided.
   map<string, string> env = 15;
-
-  // When the execution was created
-  google.protobuf.Timestamp created_at = 7;
-
-  // When the execution was scheduled
-  optional google.protobuf.Timestamp scheduled_at = 8;
-
-  // When the execution started (became ACTIVE)
-  optional google.protobuf.Timestamp started_at = 9;
-
-  // When the execution completed
-  optional google.protobuf.Timestamp completed_at = 10;
-
-  // When the execution failed
-  optional google.protobuf.Timestamp failed_at = 11;
-
-  // Error message if execution failed
-  optional string error_message = 12;
 }
 
 message ListExecutionsRequest {
   // Filter to executions of a single workflow. When set, name selects the
-  // workflow; version omitted matches all loaded versions.
+  // workflow; version omitted matches all loaded versions. When digest is set,
+  // filter to executions whose snapshotted content matches that exact digest —
+  // more precise than the mutable version (e.g. every run of one specific build).
   // Future: Add pagination.
   optional WorkflowReference workflow = 1;
 }
@@ -114,4 +107,13 @@ message ListExecutionsRequest {
 message ListExecutionsResponse {
   // Array of execution summaries
   repeated ExecutionSummary executions = 1;
+}
+
+message DeleteExecutionRequest {
+  // Unique execution identifier
+  string execution_id = 1;
+}
+
+message DeleteExecutionResponse {
+  // Empty; reserved for future fields.
 }

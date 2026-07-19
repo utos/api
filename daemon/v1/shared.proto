@@ -2,6 +2,7 @@ syntax = "proto3";
 
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
+import "workflow/v1/common.proto";
 
 package utos.daemon.v1;
 
@@ -13,9 +14,11 @@ option csharp_namespace = "Utos.Daemon.V1";
 
 // Reference to a loaded workflow definition in the daemon's local store.
 //
-// Identity is "[registry/][namespace/]name:version". registry and namespace are
-// omitted for local/unpublished workflows. version is omitted to mean "latest
-// loaded" (the highest semver among loaded versions of that identity).
+// Identity is the "[registry/][namespace/]name:version" key plus an optional
+// immutable content `digest`. registry and namespace are omitted for
+// local/unpublished workflows. version is omitted to mean "latest loaded" (the
+// highest semver among loaded versions of that identity). version is the
+// mutable, human-facing key; digest is the immutable content identity.
 message WorkflowReference {
   // Registry the workflow was published to (e.g., "registry.utos.dev").
   // Omitted for local/unpublished workflows.
@@ -29,6 +32,23 @@ message WorkflowReference {
 
   // Semantic version. Omitted means "latest loaded".
   optional string version = 4;
+
+  // OCI-style content digest of the resolved WorkflowBundle this reference
+  // identifies, e.g. "sha256:<hex>", computed over the canonical serialization
+  // defined in docs/canonical-bundle-digest.md. Stable content identity,
+  // independent of the mutable name:version key.
+  //
+  // On requests (schedule / get / unload / list filter): optional guard, not a
+  // standalone selector. The daemon resolves by name(+version) as usual, then
+  // requires the resolved bundle's digest to equal this value, failing on
+  // mismatch (drift detection); it does not look workflows up by digest alone.
+  //
+  // On resolved references returned by the daemon (ExecutionSummary.workflow,
+  // LoadWorkflowResponse/GetWorkflowResponse.reference,
+  // WorkflowDefinitionSummary.reference): populated with the digest of the actual
+  // bundle content, so callers can tell exactly what an identity resolved to and
+  // detect snapshot-vs-store divergence.
+  optional string digest = 5;
 }
 
 // ============================================================================
@@ -45,6 +65,9 @@ message ExecutionSummary {
   // Former flat workflow_* identity fields, now folded into `workflow`.
   reserved 4, 10, 11;
   reserved "workflow_version", "workflow_namespace", "workflow_registry";
+  // Former flat error_message string, now folded into structured `error`.
+  reserved 9;
+  reserved "error_message";
 
   // Unique execution identifier
   string id = 1;
@@ -53,7 +76,9 @@ message ExecutionSummary {
   ExecutionStatus status = 2;
 
   // Identity of the workflow this execution ran, as resolved at schedule time
-  // (version always populated).
+  // (version and digest always populated). `digest` is the authoritative record
+  // of the exact bundle this execution snapshotted and ran — immune to later
+  // re-loads under the same name:version.
   WorkflowReference workflow = 3;
 
   // When the execution was created
@@ -68,16 +93,22 @@ message ExecutionSummary {
   // When the execution completed or failed (whichever happened)
   optional google.protobuf.Timestamp finished_at = 8;
 
-  // Error message if execution failed (truncated to 200 chars for list view)
-  optional string error_message = 9;
+  // Structured failure details; set when status is FAILED. `details` may be
+  // omitted in `ListExecutions` list views and is populated when this summary
+  // is returned inside `GetExecutionResponse`.
+  optional utos.workflow.v1.WorkflowError error = 12;
 }
 
 enum ExecutionStatus {
   EXECUTION_STATUS_UNSPECIFIED = 0;
   EXECUTION_STATUS_SCHEDULED = 1;
   EXECUTION_STATUS_ACTIVE = 2;
-  // EXECUTION_STATUS_SUSPENDED = 3;  // Future: Waiting for external event/webhook/human
   EXECUTION_STATUS_COMPLETED = 10;    // Terminal: success
   EXECUTION_STATUS_FAILED = 11;       // Terminal: failure
-  // EXECUTION_STATUS_CANCELLED = 12; // Future: Terminal user/system cancelled
+
+  // Reserved for planned values (un-reserve when implemented):
+  //   3  — SUSPENDED: awaiting an external event/webhook/human
+  //   12 — CANCELLED: terminal, user- or system-initiated
+  reserved 3, 12;
+  reserved "EXECUTION_STATUS_SUSPENDED", "EXECUTION_STATUS_CANCELLED";
 }

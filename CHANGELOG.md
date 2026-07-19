@@ -5,7 +5,27 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.10]
+## [0.0.11]
+
+## [0.0.10] - 2026-07-19
+
+### Added
+- Documented the canonical workflow identity key — `[registry/][namespace/]name:version`, derived from `WorkflowMetadata` — used to key `WorkflowBundle.workflows`, and clarified that `WorkflowActivityConfig.workflow` is a source-format dependency alias resolved to that identity key in the built bundle (`WorkflowSpec.dependencies` documented as source-format alias declarations)
+- Structured execution errors: `GetExecutionResponse`, `ExecutionSummary`, and `WatchExecutionResponse` now carry a `WorkflowError error` field (`WatchExecutionResponse.error` is set on the transition to `FAILED`). `WorkflowError` was previously defined but unreferenced
+- Documented the invariant that each `WorkflowBundle.workflows` key must equal the canonical identity derived from its value's `WorkflowMetadata`
+- `WorkflowReference.digest` — optional OCI-style content digest (e.g. `"sha256:<hex>"`) alongside the mutable `name:version` key. On resolved references (execution records, `DefinitionService` responses) the daemon populates it with the exact bundle content identity, so an execution records what it actually ran and snapshot-vs-store drift is detectable; on requests it is an optional exact-content guard (resolve by name/version, then assert digest). Detached sub-workflows run the parent's snapshotted content (recorded digest derives from the snapshot), and `UnloadWorkflow` is documented as safe against running/finished executions
+- Documented that `end`/`error` are reserved terminal keywords and may not be used as activity names (resolving the `TransitionTarget.name` activity-vs-keyword collision)
+- Documented the canonical `WorkflowBundle` serialization used for content digests (`docs/canonical-bundle-digest.md`): proto3 JSON → RFC 8785 (JCS) → sha256, with the map-sorting/list-preserving rules `WorkflowReference.digest` depends on. Golden conformance vectors + a reference implementation are deferred as the finalization gate
+- `ExecutionService.DeleteExecution` — remove a terminal (`COMPLETED`/`FAILED`) execution's record; a non-terminal run returns `FAILED_PRECONDITION` and must be cancelled first (cancellation remains out of scope). Detached sub-workflow executions are unaffected
+
+### Changed
+- **BREAKING**: Execution failures are now structured — the `error_message` string on `GetExecutionResponse` and `ExecutionSummary` is replaced by a `WorkflowError error` field (old field numbers and names reserved)
+- **BREAKING**: `WatchExecutionRequest.tail` and `.after` are now grouped in a `oneof position`, enforcing their documented mutual exclusivity (setting one clears the other; neither remains valid)
+- **BREAKING**: `WorkflowError.details` is now `google.protobuf.Struct` instead of a JSON-encoded `string` (wire-incompatible field type change), consistent with the structured types used elsewhere in the API
+- Reserved the planned `ExecutionStatus` slots `3` (`SUSPENDED`) and `12` (`CANCELLED`) — numbers and names — replacing the commented-out placeholders, so the slots are protoc-protected from accidental reuse
+- **BREAKING**: `GetExecutionResponse` now embeds `ExecutionSummary summary` instead of re-declaring the execution's identity/status/timing/error fields. The flat fields (`id`, `status`, `workflow`, `created_at`, `scheduled_at`, `started_at`, `completed_at`, `failed_at`, `error`) are removed and read via `summary`; `bundle`, `input`, and `env` remain. Terminal time is now the single `summary.finished_at` (with `status` distinguishing success vs failure), replacing `completed_at`/`failed_at`
+- **BREAKING**: Renamed `TransitionRule.return` to `result` to avoid a reserved word in target languages (notably Python); field number unchanged, binary-compatible
+- **BREAKING**: `Workflow.api_version` and `Workflow.kind` are now `string` following the k8s GroupVersionKind convention (e.g. `"utos.io/v1"`, `"Workflow"`); the `WorkflowApiVersion`/`WorkflowKind` enums are removed
 
 ## [0.0.9] - 2026-07-17
 

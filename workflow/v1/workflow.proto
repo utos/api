@@ -42,11 +42,16 @@ message WorkflowMetadata {
 
 // A complete Utos workflow specification
 message Workflow {
-  // Utos specification version
-  WorkflowApiVersion api_version = 1;
+  // API group and spec version this document conforms to, as "group/version"
+  // (e.g. "utos.io/v1"): the group namespaces Utos kinds, the version is a
+  // coarse schema generation mirroring the proto package major — not a semver,
+  // and distinct from WorkflowMetadata.version (the workflow's own version).
+  // Currently: "utos.io/v1".
+  string api_version = 1;
 
-  // Resource type identifier
-  WorkflowKind kind = 2;
+  // Resource kind within the api_version group, a bare PascalCase noun.
+  // Currently: "Workflow".
+  string kind = 2;
 
   // Workflow metadata
   WorkflowMetadata metadata = 3;
@@ -57,27 +62,19 @@ message Workflow {
 
 // Complete workflow definition
 message WorkflowSpec {
-  // Sub-workflow dependencies
-  // Key: alias used in activities (e.g., "claude-agent")
-  // Value: reference string - either:
-  //   - Registry ref: "registry.utos.dev/namespace/name:version"
+  // Source-format dependency declarations: each entry binds an alias to a
+  // sub-workflow reference.
+  // Key: an alias, local to this workflow, that its activities use to name the
+  //   dependency (e.g., "emailer").
+  // Value: a reference to the dependency — either:
+  //   - Registry ref: "registry.example.com/namespace/name:version"
   //   - Local file: "./path/to/workflow.yaml" (starts with ./ or ../)
+  // In the built bundle, activities name dependencies by canonical identity
+  // (see WorkflowBundle.workflows).
   map<string, string> dependencies = 1;
 
-  // Map of activity name to activity definition
+  // Map of activity name to activity definition. Activity names (the keys) are
+  // referenced by TransitionTarget.name; the terminal keywords "end" and "error"
+  // are reserved and may not be used as activity names.
   map<string, WorkflowActivity> activities = 2;
-}
-
-// ============================================================================
-// Workflow Enums
-// ============================================================================
-
-enum WorkflowApiVersion {
-  WORKFLOW_API_VERSION_UNSPECIFIED = 0;
-  WORKFLOW_API_VERSION_V1_0_0 = 1;
-}
-
-enum WorkflowKind {
-  WORKFLOW_KIND_UNSPECIFIED = 0;
-  WORKFLOW_KIND_WORKFLOW_UTOS = 1;
 }
