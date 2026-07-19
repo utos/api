@@ -37,11 +37,14 @@ message WatchExecutionRequest {
   // Minimum log level (higher severity)
   optional LogLevel level = 4;
 
-  // Last N events (mutually exclusive with 'after')
-  optional int32 tail = 5;
+  // Where to start streaming from within the execution's event log.
+  oneof position {
+    // The last N events.
+    int32 tail = 5;
 
-  // Start after this event index (mutually exclusive with 'tail')
-  optional int32 after = 6;
+    // Events after this event index.
+    int32 after = 6;
+  }
 }
 
 message WatchExecutionResponse {
