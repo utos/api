@@ -17,6 +17,20 @@ This repository contains the canonical API definitions for:
 | `utos.daemon.v1` | gRPC service for workflow execution |
 | `utos.registry.v1` | Registry service (planned) |
 
+## Specifications
+
+Behaviour that the `.proto` files cannot express on their own is specified in `docs/`. These are
+normative — every implementation is expected to conform.
+
+| Document | Defines |
+|----------|---------|
+| [Workflow source format](docs/workflow-source-format.md) | What authors write, and its mapping onto `utos.workflow.v1.Workflow` |
+| [Bundle validation rules](docs/workflow-validation.md) | Every rule a `WorkflowBundle` must satisfy, with stable error codes |
+| [Canonical bundle digest](docs/canonical-bundle-digest.md) | The deterministic byte form behind `WorkflowReference.digest` |
+
+Cross-implementation fixtures live in [`conformance/`](conformance/) and are run as tests by each
+SDK, so conformance is demonstrable rather than assumed.
+
 ## SDKs
 
 Generated SDKs are published per language from their own repositories (each

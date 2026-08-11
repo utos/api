@@ -5,7 +5,23 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.11]
+## [0.0.12]
+
+## [0.0.11] - 2026-08-11
+
+### Added
+- Specified the **workflow source format** — what authors write — and its normative mapping onto `utos.workflow.v1.Workflow` (`docs/workflow-source-format.md`). Kubernetes-style envelope (`apiVersion: utos.io/v1`, `kind: Workflow`, `metadata`, `spec`, and nothing else at the top level), with each activity carrying a `type` discriminator whose legal values are **derived from the `config` oneof on `WorkflowActivity`** rather than hard-coded, so a new activity kind becomes authorable with no change to mapping logic. Also pins parser requirements (duplicate mapping keys are an error; both `snake_case` and `lowerCamelCase` field spellings accepted; unknown fields rejected) and the `UTOS-S###` range for source-resolution errors
+- Specified the **workflow bundle validation rules** (`docs/workflow-validation.md`) — every rule a `WorkflowBundle` must satisfy, each with a stable code, so the CLI, the daemon and every SDK enforce one set. Violations are reported as `code` + `path` + `message`, of which **`code` and `path` are the contract and message text deliberately is not**, leaving implementations free to word errors idiomatically. Validation is exhaustive rather than fail-fast
+- Cross-implementation **conformance fixtures** for those rules (`conformance/validation/`), as bundles in canonical JSON with expected `{code, path}` sets. Fixtures are built-form bundles rather than authored source, so they exercise the rules and not any particular front-end
+- New rules with no prior implementation: a `workflows` key must equal the canonical identity derived from its own metadata (`UTOS-B005`); every `WorkflowActivityConfig.workflow` must be a key of `workflows` (`UTOS-B006`); `spec.dependencies` must be empty in a built bundle, since leaving it populated would make two builds of the same workflow hash differently (`UTOS-B007`); an activity must have exactly one configuration set (`UTOS-A007`); `apiVersion`/`kind` must be correct (`UTOS-D001`/`UTOS-D002`); a sub-workflow's `startActivity` must exist in the workflow it names (`UTOS-C403`)
+
+### Changed
+- **C# namespace for `utos.workflow.v1` is now `Utos.Workflows.V1`** (plural), via `option csharp_namespace`. The singular form declared a namespace `Utos.Workflow` that shadowed the `Workflow` message type for any consumer whose own namespace sits under `Utos.` — and C# resolves a simple name through enclosing namespaces *before* using-directives, so a `using X = ...` alias cannot fix it; only full qualification can. The plural form cannot collide with a type named `Workflow`. **This changes no wire format**: the proto package remains `utos.workflow.v1` and message full names are unchanged, so encoded bytes, canonical JSON and content digests are all identical. Only the .NET binding moves; `utos.daemon.v1` is unaffected and the NuGet package ids are unchanged. Consumers update their `using` directives; `utos/daemon` picks this up when it bumps off `0.0.10.1`
+- Pinned activity-name reference resolution as **ordinal (case-sensitive)**. Protobuf map keys are ordinal, so a looser rule would let a document validate and then fail to find its target at run time. Reserved terminal keywords (`end`, `error`) remain case-insensitive. The reference daemon currently resolves with `OrdinalIgnoreCase` and diverges from this
+- Transition-target resolution (`UTOS-T003`) applies at **every** `TransitionTarget` site — `onSuccess`, `onFailure` and `PromiseBranch.target`. The reference daemon currently checks `onSuccess` only
+
+### Fixed
+- Corrected the worked example in `docs/canonical-bundle-digest.md`: it used `"version": "v1"`, which the semantic-version rule (`UTOS-M005`) rejects for its `v` prefix, and transitioned to an activity `retry` that the example never defines (`UTOS-T003`)
 
 ## [0.0.10] - 2026-07-19
 

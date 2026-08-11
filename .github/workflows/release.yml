@@ -22,7 +22,7 @@ jobs:
     permissions:
       contents: write  # Needed to create tags
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -58,7 +58,7 @@ jobs:
       # --- Notify SDK repos (utos/sdk-*) -----------------------------------------
       - name: Mint GitHub App token
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}

@@ -1,0 +1,143 @@
+{
+  "entryPoint": "acme/orchestrator:1.0.0",
+  "workflows": {
+    "acme/orchestrator:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "orchestrator",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "Exercises every activity kind, a back-edge, and both terminal keywords."
+      },
+      "spec": {
+        "activities": {
+          "poll": {
+            "http": {
+              "method": "GET",
+              "url": "{{ env.API_BASE }}/orders/{{ input.orderId }}",
+              "headers": {
+                "accept": "application/json"
+              }
+            },
+            "onSuccess": [
+              {
+                "condition": "{{ output.status == 'ready' }}",
+                "transition": {
+                  "name": "fan-out",
+                  "input": {
+                    "addons": "{{ output.addons }}"
+                  }
+                }
+              },
+              {
+                "transition": {
+                  "name": "wait"
+                }
+              }
+            ],
+            "onFailure": [
+              {
+                "transition": {
+                  "name": "error"
+                }
+              }
+            ]
+          },
+          "wait": {
+            "timer": {
+              "duration": "30s"
+            },
+            "onSuccess": [
+              {
+                "transition": {
+                  "name": "poll"
+                }
+              }
+            ]
+          },
+          "fan-out": {
+            "promise": {
+              "mode": "count",
+              "requiredCount": 2,
+              "branches": [
+                {
+                  "name": "notify",
+                  "target": {
+                    "name": "send-notification"
+                  }
+                },
+                {
+                  "name": "addon-{{ item.sku }}",
+                  "forEach": {
+                    "collection": "{{ input.addons }}",
+                    "alias": "item"
+                  },
+                  "condition": "{{ item.enabled }}",
+                  "target": {
+                    "name": "provision-addon",
+                    "input": {
+                      "sku": "{{ item.sku }}"
+                    }
+                  }
+                }
+              ]
+            },
+            "onSuccess": [
+              {
+                "result": {
+                  "fulfilled": true,
+                  "attempts": 3,
+                  "notes": null
+                }
+              }
+            ]
+          },
+          "send-notification": {
+            "workflow": {
+              "workflow": "acme/send-email:2.1.0",
+              "startActivity": "send",
+              "input": {
+                "recipient": "{{ input.email }}"
+              },
+              "detached": true
+            },
+            "onSuccess": [
+              {
+                "transition": {
+                  "name": "end"
+                }
+              }
+            ]
+          },
+          "provision-addon": {
+            "http": {
+              "method": "POST",
+              "url": "https://api.example.com/addons",
+              "body": "{\"sku\": \"{{ input.sku }}\"}"
+            }
+          }
+        }
+      }
+    },
+    "acme/send-email:2.1.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "send-email",
+        "namespace": "acme",
+        "version": "2.1.0"
+      },
+      "spec": {
+        "activities": {
+          "send": {
+            "http": {
+              "method": "POST",
+              "url": "https://mail.example.com/send"
+            }
+          }
+        }
+      }
+    }
+  }
+}

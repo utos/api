@@ -1,0 +1,24 @@
+{
+  "entryPoint": "acme/orchestrator:1.0.0",
+  "workflows": {
+    "acme/orchestrator:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "orchestrator",
+        "namespace": "acme",
+        "version": "1.0.0"
+      },
+      "spec": {
+        "activities": {
+          "call": {
+            "workflow": {
+              "workflow": "acme/send-email:2.1.0",
+              "startActivity": "send"
+            }
+          }
+        }
+      }
+    }
+  }
+}

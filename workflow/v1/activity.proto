@@ -5,7 +5,7 @@ package utos.workflow.v1;
 import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 
-option csharp_namespace = "Utos.Workflow.V1";
+option csharp_namespace = "Utos.Workflows.V1";
 
 // ============================================================================
 // Activity Definitions

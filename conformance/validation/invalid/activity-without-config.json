@@ -1,0 +1,18 @@
+{
+  "entryPoint": "greet:1.0.0",
+  "workflows": {
+    "greet:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "greet",
+        "version": "1.0.0"
+      },
+      "spec": {
+        "activities": {
+          "say-hello": {}
+        }
+      }
+    }
+  }
+}

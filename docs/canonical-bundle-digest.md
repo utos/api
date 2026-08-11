@@ -76,15 +76,15 @@ Source (informal), authored with `activities` in the order `start`, then `done`;
 
 ```json
 {
-  "entryPoint": "acme/greet:v1",
+  "entryPoint": "acme/greet:1.0.0",
   "workflows": {
-    "acme/greet:v1": {
+    "acme/greet:1.0.0": {
       "apiVersion": "utos.io/v1",
       "kind": "Workflow",
       "metadata": {
         "name": "greet",
         "namespace": "acme",
-        "version": "v1"
+        "version": "1.0.0"
       },
       "spec": {
         "activities": {
@@ -98,7 +98,7 @@ Source (informal), authored with `activities` in the order `start`, then `done`;
             },
             "onSuccess": [
               { "condition": "{{ output.ok }}", "transition": { "name": "done" } },
-              { "transition": { "name": "retry" } }
+              { "transition": { "name": "end" } }
             ]
           }
         }
