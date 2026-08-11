@@ -1,0 +1,8 @@
+{
+  "issues": [
+    {
+      "code": "UTOS-B006",
+      "path": "workflows[\"acme/orchestrator:1.0.0\"].spec.activities[\"call\"].workflow.workflow"
+    }
+  ]
+}

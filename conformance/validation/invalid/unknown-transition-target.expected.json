@@ -1,0 +1,8 @@
+{
+  "issues": [
+    {
+      "code": "UTOS-T003",
+      "path": "workflows[\"greet:1.0.0\"].spec.activities[\"say-hello\"].onSuccess[0].transition.name"
+    }
+  ]
+}
