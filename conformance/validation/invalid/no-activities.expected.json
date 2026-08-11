@@ -1,0 +1,5 @@
+{
+  "issues": [
+    { "code": "UTOS-D005", "path": "workflows[\"greet:1.0.0\"].spec.activities" }
+  ]
+}

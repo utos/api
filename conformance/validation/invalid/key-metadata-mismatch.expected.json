@@ -1,0 +1,5 @@
+{
+  "issues": [
+    { "code": "UTOS-B005", "path": "workflows[\"acme/greet:1.0.0\"]" }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "entryPoint": "greet:1.0.0",
+  "workflows": {
+    "greet:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "greet",
+        "version": "1.0.0"
+      },
+      "spec": {
+        "activities": {
+          "fan-out": {
+            "promise": {
+              "mode": "count",
+              "branches": [
+                {
+                  "name": "first",
+                  "target": {
+                    "name": "leg"
+                  }
+                }
+              ]
+            }
+          },
+          "leg": {
+            "http": {
+              "method": "GET",
+              "url": "https://api.example.com/leg"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -4,7 +4,7 @@ import "workflow/v1/workflow.proto";
 
 package utos.workflow.v1;
 
-option csharp_namespace = "Utos.Workflow.V1";
+option csharp_namespace = "Utos.Workflows.V1";
 
 // ============================================================================
 // Bundle (Built Format)
