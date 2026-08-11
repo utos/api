@@ -5,7 +5,9 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.11]
+## [0.0.12]
+
+## [0.0.11] - 2026-08-11
 
 ### Added
 - Specified the **workflow source format** — what authors write — and its normative mapping onto `utos.workflow.v1.Workflow` (`docs/workflow-source-format.md`). Kubernetes-style envelope (`apiVersion: utos.io/v1`, `kind: Workflow`, `metadata`, `spec`, and nothing else at the top level), with each activity carrying a `type` discriminator whose legal values are **derived from the `config` oneof on `WorkflowActivity`** rather than hard-coded, so a new activity kind becomes authorable with no change to mapping logic. Also pins parser requirements (duplicate mapping keys are an error; both `snake_case` and `lowerCamelCase` field spellings accepted; unknown fields rejected) and the `UTOS-S###` range for source-resolution errors
