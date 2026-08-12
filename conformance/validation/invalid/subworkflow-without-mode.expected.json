@@ -1,0 +1,8 @@
+{
+  "issues": [
+    {
+      "code": "UTOS-A007",
+      "path": "workflows[\"acme/orchestrator:1.0.0\"].spec.activities[\"notify\"].workflow"
+    }
+  ]
+}

@@ -2,7 +2,7 @@
   "issues": [
     {
       "code": "UTOS-C302",
-      "path": "workflows[\"greet:1.0.0\"].spec.activities[\"fan-out\"].promise.requiredCount"
+      "path": "workflows[\"greet:1.0.0\"].spec.activities[\"fan-out\"].promise.count.requiredCount"
     }
   ]
 }

@@ -121,11 +121,17 @@ pattern. The code stays the same either way.
 | `UTOS-A004` | An activity name must match `^[a-zA-Z0-9_-]+$` |
 | `UTOS-A005` | An activity name must not begin with a digit, `-`, or `_` |
 | `UTOS-A006` | An activity name must not end with `-` or `_` |
-| `UTOS-A007` | An activity must have exactly one configuration set |
+| `UTOS-A007` | An activity must have exactly one configuration set, at every level |
 
 `UTOS-A007` covers the `config` oneof being unset. It cannot be set twice — protobuf enforces
 that structurally — but it can easily be omitted, and an activity that does nothing is
 malformed rather than trivially successful.
+
+"At every level" extends the same rule to the nested mode oneofs: a `WorkflowActivityConfig` with
+neither `call` nor `spawn`, or a `PromiseActivityConfig` with no `completion`, is as malformed as
+an activity with no configuration at all, and for the same reason — the mode determines what the
+activity does. The `path` names the level that is unset, e.g.
+`…activities["notify"].workflow`.
 
 ## `UTOS-T###` — Transitions
 
@@ -168,14 +174,23 @@ There is deliberately no maximum. A long wait is legitimate.
 
 | Code | Rule |
 |---|---|
-| `UTOS-C301` | `mode` must be one of `all`, `any`, `race`, `count` |
-| `UTOS-C302` | `requiredCount` must be greater than zero when `mode` is `count` |
+| ~~`UTOS-C301`~~ | *Retired.* `mode` must be one of `all`, `any`, `race`, `count` |
+| `UTOS-C302` | `requiredCount` must be greater than zero |
 | `UTOS-C303` | `branches` must contain at least one branch |
 | `UTOS-C304` | A branch `name` is required |
 | `UTOS-C305` | A branch `target` is required |
 | `UTOS-C306` | `forEach.collection` and `forEach.alias` are both required when `forEach` is present |
 
 Branch `target.name` is covered by `UTOS-T002` and `UTOS-T003`.
+
+`UTOS-C301` is **retired, not renumbered**. The completion mode is a oneof rather than a string,
+so an unknown mode is no longer representable and the rule has nothing left to check; an unset
+oneof is `UTOS-A007`. The code stays burned because codes are a stable contract — reusing
+`UTOS-C301` for something else would silently change the meaning of a suppression an
+implementation had already written down.
+
+`UTOS-C302` loses its condition for the same reason: `requiredCount` exists only on
+`PromiseCountConfig`, so there is no longer a mode in which it is present but meaningless.
 
 ## `UTOS-C4##` — Sub-workflow configuration
 
@@ -184,6 +199,9 @@ Branch `target.name` is covered by `UTOS-T002` and `UTOS-T003`.
 | `UTOS-C401` | `workflow` is required and non-empty |
 | `UTOS-C402` | `startActivity` is required and non-empty |
 | `UTOS-C403` | `startActivity` must name an activity in the referenced sub-workflow |
+
+All three apply to `workflow.call` and `workflow.spawn` alike: they check fields of the outer
+`WorkflowActivityConfig`, which both modes share. Which mode is set is `UTOS-A007`'s business.
 
 `UTOS-C403` is checkable precisely because a bundle is self-contained — the referenced workflow
 is present, by `UTOS-B006`.

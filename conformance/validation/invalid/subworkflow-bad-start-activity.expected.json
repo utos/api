@@ -2,7 +2,7 @@
   "issues": [
     {
       "code": "UTOS-C403",
-      "path": "workflows[\"acme/orchestrator:1.0.0\"].spec.activities[\"call\"].workflow.startActivity"
+      "path": "workflows[\"acme/orchestrator:1.0.0\"].spec.activities[\"notify\"].workflow.startActivity"
     }
   ]
 }

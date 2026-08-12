@@ -13,8 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cancellation cascade semantics: an awaited sub-workflow is cancelled with its parent, since its result can no longer be observed, while a detached execution is not — it is an independent top-level execution and must be cancelled by id, consistent with the existing detached-lifecycle rule
 
 ### Changed
+- **BREAKING**: Sub-workflow invocation mode is now a nested oneof instead of a flag. `WorkflowActivityConfig.detached` is removed (number and name reserved) in favour of `oneof mode { CallActivityConfig call; SpawnActivityConfig spawn; }`. The flag changed the activity's **output contract** — the child's result when false, a `{"execution_id": …}` handle when true — and its failure semantics, since `on_failure` catches the child's runtime failures only in the awaited case. A boolean that reshapes what a message returns is better expressed as two kinds, where the difference is visible in the type rather than in a comment
+- **BREAKING**: Promise completion mode is now a nested oneof instead of a string. `PromiseActivityConfig.mode` and `.required_count` are removed (numbers and names reserved) in favour of `oneof completion { PromiseAllConfig all; PromiseAnyConfig any; PromiseRaceConfig race; PromiseCountConfig count; }`, with `required_count` moved onto `PromiseCountConfig` — the only mode that has ever used it. This makes an unknown mode unrepresentable, and makes it structurally impossible to set `requiredCount` on a mode that ignores it
+- **BREAKING**: The source format's `type` discriminator is now a **dot-separated path** through nested config oneofs: `workflow.call`, `workflow.spawn`, `promise.all`, `promise.any`, `promise.race`, `promise.count`. `http` and `timer` are unchanged, since neither declares a nested oneof. Bare `type: workflow` and `type: promise` are no longer legal and report `UTOS-S007` — there is deliberately no implicit default, because both choices change what the activity does. Legal values remain **derived from the descriptor**, so this generalizes the existing rule rather than excepting it: the walk simply continues while the message it reaches still declares a oneof
+- **BREAKING**: `UTOS-A007` ("exactly one configuration set") now applies **at every level**, covering a `WorkflowActivityConfig` with neither `call` nor `spawn` and a `PromiseActivityConfig` with no `completion`. The reported `path` names the level that is unset
+- `UTOS-C302` (`requiredCount` must be greater than zero) is no longer conditional on the mode, since `requiredCount` now exists only on `PromiseCountConfig`
+- `CancelExecution` and `DeleteExecution` now describe their sub-workflow scope in terms of `workflow.call` and `workflow.spawn` rather than the removed "detached" flag
 - `DeleteExecution` now admits `CANCELLED` alongside `COMPLETED` and `FAILED` as a deletable terminal state, and its comment points at `CancelExecution` instead of describing cancellation as undefined
 - `ExecutionSummary.finished_at` is documented as the moment any terminal status was reached, cancellation included
+
+### Removed
+- `UTOS-C301` (`mode` must be one of `all`, `any`, `race`, `count`) is **retired**. An unknown mode is no longer representable, so the rule has nothing to check; an unset completion oneof is `UTOS-A007`. The code stays burned rather than being reused — codes are a stable contract, and recycling one would silently change the meaning of a suppression somebody had already written down
+
+### Fixed
+- `docs/canonical-bundle-digest.md` no longer uses the removed `detached:false` as its worked example of an omitted implicit-presence default, and now states explicitly that **a set message field is emitted even when empty**. All five mode discriminators are empty messages, so a `workflow.call` activity serializes `"call": {}`; an implementation that pruned empty objects as a tidiness pass would erase the mode and make two activities with different behaviour hash identically
 
 ## [0.0.11] - 2026-08-11
 

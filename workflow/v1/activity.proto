@@ -108,8 +108,17 @@ message TimerActivityConfig {
   google.protobuf.Duration duration = 1;
 }
 
-// Configuration for sub-workflow invocation
+// Configuration for sub-workflow invocation.
+//
+// The invocation mode is a nested oneof rather than a flag, because the choice
+// changes this activity's output contract and its failure semantics — see
+// CallActivityConfig and SpawnActivityConfig. In the source format the mode is
+// part of the `type` discriminator path: `workflow.call` or `workflow.spawn`.
 message WorkflowActivityConfig {
+  // Former `bool detached` flag, replaced by the `mode` oneof below.
+  reserved 4;
+  reserved "detached";
+
   // Identifies the sub-workflow to invoke.
   // In the source format: a dependency alias — a key in this workflow's
   // WorkflowSpec.dependencies map (e.g. "emailer").
@@ -125,25 +134,36 @@ message WorkflowActivityConfig {
   // expressions. The sub-workflow execution inherits this run's ambient `env`.
   google.protobuf.Struct input = 3;
 
-  // If true, start the sub-workflow but do NOT wait for it to finish
-  // (fire-and-forget). The parent transitions immediately once the child is
-  // started; the child runs as an independent execution with its own lifecycle
-  // and may outlive the parent.
+  // How the sub-workflow is invoked — exactly one must be set.
   //
-  // When detached, the activity's `output` is a handle to the started run —
-  // { "execution_id": "<id>" } — not the child's result (there is no result to
-  // wait for). `on_failure` only catches failures to *start* the child, not the
-  // child's own runtime failures, which the parent never observes.
-  //
-  // A detached child runs the sub-workflow content snapshotted in the parent's
-  // bundle (same content lineage / digest family), not a re-resolution against
-  // the current store, so it is reproducible and its recorded workflow.digest
-  // derives from the parent's snapshot.
-  //
-  // Defaults to false: the sub-workflow is awaited and its result becomes this
-  // activity's `output`.
-  bool detached = 4;
+  // Either way the child runs the sub-workflow content snapshotted in the
+  // parent's bundle (same content lineage / digest family), not a re-resolution
+  // against the current store, so it is reproducible and its recorded
+  // workflow.digest derives from the parent's snapshot.
+  oneof mode {
+    CallActivityConfig call = 5;
+    SpawnActivityConfig spawn = 6;
+  }
 }
+
+// Await the sub-workflow: this activity does not complete until the child
+// terminates, and the child's result becomes this activity's `output`.
+// `on_failure` catches the child's runtime failures.
+//
+// The child's lifecycle is bound to this activity. If the parent execution is
+// cancelled, or stops waiting, the child is cancelled too — its result can no
+// longer be observed.
+message CallActivityConfig {}
+
+// Start the sub-workflow and move on immediately (fire-and-forget). The child
+// runs as an independent top-level execution with its own lifecycle and may
+// outlive the parent; the daemon must not tear it down when the parent ends.
+//
+// The activity's `output` is a handle to the started run —
+// { "execution_id": "<id>" } — not the child's result, since there is nothing
+// to wait for. `on_failure` only catches failures to *start* the child, not the
+// child's own runtime failures, which the parent never observes.
+message SpawnActivityConfig {}
 
 // Configuration for concurrent fan-out (promise) activities.
 //
@@ -154,18 +174,45 @@ message WorkflowActivityConfig {
 // total spawned work — concurrency, recursion depth, execution budget — is a
 // daemon responsibility, not a constraint of this spec.
 message PromiseActivityConfig {
-  // Completion mode — operates on *started* branches (after condition filtering):
-  //   "all"   — all must succeed; fails if any branch fails
-  //   "any"   — resolves on first success; fails if all branches fail
-  //   "race"  — resolves on first settlement (success or failure); result propagates
-  //   "count" — resolves when required_count branches succeed; fails if unreachable
-  string mode = 1;
-
-  // Number of branches that must succeed — only used when mode is "count"
-  int32 required_count = 2;
+  // Former `string mode` + `int32 required_count`, replaced by the `completion`
+  // oneof below. required_count now lives on PromiseCountConfig, the only mode
+  // that has ever used it.
+  reserved 1, 2;
+  reserved "mode", "required_count";
 
   // Branches to execute concurrently
   repeated PromiseBranch branches = 3;
+
+  // Completion mode — exactly one must be set. Operates on *started* branches,
+  // i.e. after condition filtering.
+  //
+  // Named `completion` rather than `mode` because `mode` is a reserved field
+  // name in this message. In the source format the mode is part of the `type`
+  // discriminator path: `promise.all`, `promise.any`, `promise.race`,
+  // `promise.count`.
+  oneof completion {
+    PromiseAllConfig all = 4;
+    PromiseAnyConfig any = 5;
+    PromiseRaceConfig race = 6;
+    PromiseCountConfig count = 7;
+  }
+}
+
+// All started branches must succeed; fails if any branch fails.
+message PromiseAllConfig {}
+
+// Resolves on the first branch to succeed; fails if all branches fail.
+message PromiseAnyConfig {}
+
+// Resolves on the first branch to settle, success or failure; that branch's
+// result propagates either way.
+message PromiseRaceConfig {}
+
+// Resolves once `required_count` branches have succeeded; fails as soon as
+// enough branches have failed that the count is unreachable.
+message PromiseCountConfig {
+  // Number of branches that must succeed. Must be greater than zero.
+  int32 required_count = 1;
 }
 
 // A single branch within a promise activity
