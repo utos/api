@@ -32,7 +32,7 @@ message WorkflowActivity {
   }
 }
 
-// Defines a conditional transition rule with an action (transition or result)
+// Defines a conditional transition rule with an action (transition, result, or emit)
 message TransitionRule {
   // Template condition expression (e.g., "{{ output.count > 10 }}")
   // If empty/omitted, rule always executes (default/fallback rule)
@@ -46,9 +46,36 @@ message TransitionRule {
     // Transition to another activity
     TransitionTarget transition = 2;
 
-    // Return data and end this execution path
+    // Return data and end this execution path. Appends the terminal entry to
+    // this execution's output stream — see docs/execution-output-stream.md.
     google.protobuf.Struct result = 3;
+
+    // Append a value to this execution's output stream and keep going.
+    EmitAction emit = 4;
   }
+}
+
+// Appends a value to this execution's output stream, then transitions.
+//
+// `result` is emit-and-terminate; `emit` is emit-and-continue. A workflow that
+// emits N times and then returns produces a stream of N value entries followed
+// by one terminal entry, which is what lets a caller consume values in order
+// and still observe the final result — see docs/execution-output-stream.md.
+//
+// A caller that invoked this workflow with `workflow.call` and declared
+// `on_emitted` is a privileged consumer: the emit does not complete until that
+// consumer's cursor advances past the entry. That bounds the unconsumed buffer
+// to one entry, so a producer faster than its consumer cannot grow the durable
+// stream without limit. With no privileged consumer the emit completes as soon
+// as the entry is durable.
+message EmitAction {
+  // The value to append. Leaf string values may contain {{ }} template
+  // expressions, resolved in the same context as a TransitionRule condition.
+  google.protobuf.Struct value = 1;
+
+  // Where to go after emitting. Required — an emit is not a terminal action, so
+  // a rule that emits and goes nowhere is a dead end rather than a return.
+  TransitionTarget transition = 2;
 }
 
 // Defines the target of a transition
@@ -153,7 +180,30 @@ message WorkflowActivityConfig {
 // The child's lifecycle is bound to this activity. If the parent execution is
 // cancelled, or stops waiting, the child is cancelled too — its result can no
 // longer be observed.
-message CallActivityConfig {}
+message CallActivityConfig {
+  // Subscribes this activity to the sub-workflow's output stream: evaluated
+  // once per value the child emits, in stream order, before the child's
+  // terminal entry reaches `on_success`.
+  //
+  // Consuming is a loop, expressed with the transitions that already exist: the
+  // handler path must transition back to this activity to take the next value.
+  // Re-entering the activity while a subscription is live consumes rather than
+  // starting a second child. Leaving the handler path any other way — `end`,
+  // `result`, or a transition into an unrelated part of the graph — ends the
+  // subscription and cancels the child, since nothing will observe it again.
+  //
+  // Every rule here must carry a `transition` action; `result` and `emit` have
+  // no meaning inside an emission handler (UTOS-C405).
+  //
+  // Ordering needs no separate rule. Emitted values and the terminal result are
+  // entries in one ordered stream walked by one cursor, so `on_emitted` cannot
+  // race `on_success` — a fast-terminating child cannot overtake its own
+  // output.
+  //
+  // Empty (the default) means this caller ignores emissions: it awaits only the
+  // terminal entry. It is not privileged, so it does not gate the producer.
+  repeated TransitionRule on_emitted = 1;
+}
 
 // Start the sub-workflow and move on immediately (fire-and-forget). The child
 // runs as an independent top-level execution with its own lifecycle and may

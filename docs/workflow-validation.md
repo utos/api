@@ -137,13 +137,19 @@ activity does. The `path` names the level that is unset, e.g.
 
 | Code | Rule |
 |---|---|
-| `UTOS-T001` | A transition rule must carry exactly one action — `transition` or `result` |
+| `UTOS-T001` | A transition rule must carry exactly one action — `transition`, `result`, or `emit` |
 | `UTOS-T002` | A `TransitionTarget.name` must be non-empty |
 | `UTOS-T003` | A `TransitionTarget.name` must resolve to an activity in the same workflow, or to a reserved terminal keyword |
+| `UTOS-T004` | `emit.transition` is required |
 
-`UTOS-T003` applies at **every** `TransitionTarget` site: `onSuccess`, `onFailure`, and
-`PromiseBranch.target`. The `path` identifies which. Resolution is scoped to the workflow that
-declares the transition — a target never crosses into a sub-workflow.
+`UTOS-T003` applies at **every** `TransitionTarget` site: `onSuccess`, `onFailure`,
+`PromiseBranch.target`, `onEmitted`, and `emit.transition`. The `path` identifies which.
+Resolution is scoped to the workflow that declares the transition — a target never crosses into a
+sub-workflow.
+
+`UTOS-T004` exists because `emit` is the one action that is not terminal. `result` ends a path and
+needs no target; `emit` appends a value and carries on, so a rule that emits without saying where
+to go next is a dead end rather than a return, and would strand the execution.
 
 > The reference daemon currently checks `onSuccess` targets only. Applying `UTOS-T003` uniformly
 > closes that gap.
@@ -199,12 +205,24 @@ implementation had already written down.
 | `UTOS-C401` | `workflow` is required and non-empty |
 | `UTOS-C402` | `startActivity` is required and non-empty |
 | `UTOS-C403` | `startActivity` must name an activity in the referenced sub-workflow |
+| `UTOS-C404` | Every `call.onEmitted` rule's action must be a `transition` |
 
 All three apply to `workflow.call` and `workflow.spawn` alike: they check fields of the outer
 `WorkflowActivityConfig`, which both modes share. Which mode is set is `UTOS-A007`'s business.
 
 `UTOS-C403` is checkable precisely because a bundle is self-contained — the referenced workflow
 is present, by `UTOS-B006`.
+
+`call.onEmitted` is an ordinary transition list, so `UTOS-T001`–`UTOS-T004` apply to its rules
+exactly as they do to `onSuccess` — those violations report under their own codes, not under a
+sub-workflow one.
+
+`UTOS-C404` is the one thing that is specific to emission handlers: it narrows what they may do.
+`result` would end the parent mid-stream while values were still arriving, and `emit` would
+republish a child's value onto the parent's own stream from inside the handler consuming it —
+neither is a thing to express here. The handler's job is to process one value and transition,
+normally back to the call activity to take the next. `onEmitted` exists only on `call`; `spawn`
+has no subscriber, so there is nothing to declare.
 
 ---
 

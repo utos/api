@@ -1,0 +1,12 @@
+{
+  "issues": [
+    {
+      "code": "UTOS-C404",
+      "path": "workflows[\"acme/watcher:1.0.0\"].spec.activities[\"watch\"].workflow.call.onEmitted[0]"
+    },
+    {
+      "code": "UTOS-T003",
+      "path": "workflows[\"acme/watcher:1.0.0\"].spec.activities[\"watch\"].workflow.call.onEmitted[1].transition.name"
+    }
+  ]
+}

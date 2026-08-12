@@ -213,9 +213,74 @@ Each rule carries exactly one action:
   `input` context; leaf strings may contain `{{ }}` expressions. Omitted, the source activity's
   output passes through unchanged.
 - `result` — end this execution path, returning the given structure.
+- `emit` — append `value` to this execution's output stream, then take `transition`. Where
+  `result` is emit-and-terminate, `emit` is emit-and-continue, so a workflow can produce many
+  values over its lifetime instead of exactly one at the end.
 
 A transition may name an already-visited activity. That back-edge is a loop, and is the intended
 way to express polling.
+
+### Emitting and consuming values
+
+A workflow that emits is a producer; a `workflow.call` activity that declares `onEmitted` is its
+consumer. Together they express "watch something and hand each result to my caller" without the
+caller having to know how the watching works.
+
+```yaml
+# In the producer — poll, hand each batch to the caller, wait, repeat.
+poll:
+  type: http
+  method: GET
+  url: "{{ env.MAIL_API }}/messages?since={{ input.cursor }}"
+  onSuccess:
+    - condition: "{{ output.messages | array.size > 0 }}"
+      emit:
+        value:
+          messages: "{{ output.messages }}"
+        transition:
+          name: wait
+          input: { cursor: "{{ output.cursor }}" }
+    - transition:
+        name: wait
+        input: { cursor: "{{ input.cursor }}" }
+```
+
+```yaml
+# In the consumer — one handler per emitted value, then back for the next.
+watch:
+  type: workflow.call
+  workflow: mailbox
+  startActivity: poll
+  onEmitted:
+    - transition: { name: handle }
+  onSuccess:
+    - result: { done: true }
+
+handle:
+  type: http
+  method: POST
+  url: https://api.example.com/ingest
+  body: '{"messages": {{ input.messages }}}'
+  onSuccess:
+    - transition: { name: watch }     # back-edge: take the next value
+```
+
+Three things follow from this being one ordered stream rather than a side channel:
+
+- **Order is structural.** Emitted values and the final result are entries in one stream walked by
+  one cursor, so `onEmitted` fires for every value before `onSuccess` sees the result. A
+  fast-terminating producer cannot overtake its own output.
+- **The consumer sets the pace.** An `emit` does not complete until its consumer has moved past
+  it, so a producer cannot run ahead and pile up unconsumed values. A poller simply returns a
+  larger batch next time, which is the desired behaviour — see
+  [`execution-output-stream.md`](execution-output-stream.md).
+- **Leaving ends the subscription.** The handler must transition back to the call activity. Going
+  anywhere else — `end`, a `result`, another part of the graph — ends the subscription and cancels
+  the producer, because nothing will observe it again.
+
+A `workflow.call` without `onEmitted` ignores emissions and simply awaits the result, and
+`workflow.spawn` has no consumer at all. Emitted values are still recorded either way, readable
+over `ExecutionService.WatchOutput`.
 
 ### Templates
 
