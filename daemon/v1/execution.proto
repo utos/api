@@ -21,13 +21,28 @@ service ExecutionService {
   // List all executions
   rpc ListExecutions(ListExecutionsRequest) returns (ListExecutionsResponse);
 
+  // Stop a running execution. Permitted while SCHEDULED or ACTIVE; the
+  // execution reaches the terminal status CANCELLED.
+  //
+  // Idempotent: cancelling an already-CANCELLED execution returns OK. An
+  // execution that already reached COMPLETED or FAILED stays there and returns
+  // FAILED_PRECONDITION — the first terminal state wins, because the daemon's
+  // delivery is at-least-once and a late cancel must not rewrite history.
+  // Unknown execution_id returns NOT_FOUND.
+  //
+  // Cancellation cascades to sub-workflows this run is awaiting, since their
+  // results can no longer be observed. It does NOT touch detached sub-workflow
+  // executions — those are independent top-level executions with their own
+  // lifecycle, and must be cancelled by id.
+  rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
+
   // Delete a terminal execution's record (its summary, input/env, and the
   // snapshotted bundle). Permitted only when the execution is terminal
-  // (COMPLETED or FAILED); a SCHEDULED or ACTIVE execution returns
-  // FAILED_PRECONDITION and must be cancelled first (cancellation is a separate
-  // concern, not yet defined). Unknown execution_id returns NOT_FOUND. Does not
-  // affect any detached sub-workflow executions this run started — those are
-  // independent top-level executions with their own records.
+  // (COMPLETED, FAILED, or CANCELLED); a SCHEDULED or ACTIVE execution returns
+  // FAILED_PRECONDITION and must be cancelled first, via CancelExecution.
+  // Unknown execution_id returns NOT_FOUND. Does not affect any detached
+  // sub-workflow executions this run started — those are independent top-level
+  // executions with their own records.
   rpc DeleteExecution(DeleteExecutionRequest) returns (DeleteExecutionResponse);
 }
 
@@ -107,6 +122,20 @@ message ListExecutionsRequest {
 message ListExecutionsResponse {
   // Array of execution summaries
   repeated ExecutionSummary executions = 1;
+}
+
+message CancelExecutionRequest {
+  // Unique execution identifier
+  string execution_id = 1;
+
+  // Optional human-readable reason, recorded on the execution and surfaced in
+  // its summary. Not interpreted by the daemon.
+  optional string reason = 2;
+}
+
+message CancelExecutionResponse {
+  // Status after the call — always EXECUTION_STATUS_CANCELLED on success.
+  ExecutionStatus status = 1;
 }
 
 message DeleteExecutionRequest {

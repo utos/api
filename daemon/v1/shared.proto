@@ -90,13 +90,20 @@ message ExecutionSummary {
   // When the execution started (became ACTIVE)
   optional google.protobuf.Timestamp started_at = 7;
 
-  // When the execution completed or failed (whichever happened)
+  // When the execution reached a terminal status — completed, failed, or
+  // cancelled, whichever happened
   optional google.protobuf.Timestamp finished_at = 8;
 
   // Structured failure details; set when status is FAILED. `details` may be
   // omitted in `ListExecutions` list views and is populated when this summary
   // is returned inside `GetExecutionResponse`.
   optional utos.workflow.v1.WorkflowError error = 12;
+
+  // Why this execution was cancelled; set only when status is CANCELLED, and
+  // only when a reason was supplied or the daemon cancelled it on its own
+  // initiative (a cascade from a cancelled parent, or a sub-workflow whose
+  // calling activity abandoned it). Not an error — see EXECUTION_STATUS_CANCELLED.
+  optional string cancellation_reason = 13;
 }
 
 enum ExecutionStatus {
@@ -106,9 +113,19 @@ enum ExecutionStatus {
   EXECUTION_STATUS_COMPLETED = 10;    // Terminal: success
   EXECUTION_STATUS_FAILED = 11;       // Terminal: failure
 
+  // Terminal: user- or system-initiated cancellation. Reached via
+  // ExecutionService.CancelExecution, or automatically when the daemon tears
+  // down an execution whose result is no longer wanted — a sub-workflow whose
+  // calling activity abandoned it, or a child of a cancelled parent.
+  //
+  // Cancellation is terminal and idempotent: an execution that has already
+  // reached COMPLETED or FAILED stays there, and cancelling twice is not an
+  // error. Distinct from FAILED because nothing went wrong — a poller cancelled
+  // on purpose has not failed.
+  EXECUTION_STATUS_CANCELLED = 12;
+
   // Reserved for planned values (un-reserve when implemented):
   //   3  — SUSPENDED: awaiting an external event/webhook/human
-  //   12 — CANCELLED: terminal, user- or system-initiated
-  reserved 3, 12;
-  reserved "EXECUTION_STATUS_SUSPENDED", "EXECUTION_STATUS_CANCELLED";
+  reserved 3;
+  reserved "EXECUTION_STATUS_SUSPENDED";
 }
