@@ -1,0 +1,58 @@
+{
+  "entryPoint": "acme/watcher:1.0.0",
+  "workflows": {
+    "acme/watcher:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "watcher",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "An onEmitted rule that returns, and one targeting an activity that does not exist."
+      },
+      "spec": {
+        "activities": {
+          "watch": {
+            "workflow": {
+              "workflow": "acme/mailbox:1.0.0",
+              "startActivity": "poll",
+              "call": {
+                "onEmitted": [
+                  {
+                    "result": {
+                      "done": true
+                    }
+                  },
+                  {
+                    "transition": {
+                      "name": "missing"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "acme/mailbox:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "mailbox",
+        "version": "1.0.0",
+        "namespace": "acme"
+      },
+      "spec": {
+        "activities": {
+          "poll": {
+            "http": {
+              "method": "GET",
+              "url": "https://mail.example.com/messages"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,7 +1,10 @@
 syntax = "proto3";
 
 import "daemon/v1/shared.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 import "workflow/v1/bundle.proto";
+import "workflow/v1/common.proto";
 
 package utos.daemon.v1;
 
@@ -21,13 +24,47 @@ service ExecutionService {
   // List all executions
   rpc ListExecutions(ListExecutionsRequest) returns (ListExecutionsResponse);
 
+  // Stream an execution's output — the values it emitted and its terminal
+  // result — in order, from a cursor. See docs/execution-output-stream.md.
+  //
+  // This is a data stream, deliberately separate from
+  // ObservabilityService.WatchExecution, which carries log lines. Emitted
+  // values are what a workflow produced, not a record of what it did, and
+  // folding them into a filterable log stream would let a `level` filter drop
+  // them.
+  //
+  // Callers here are observers: reading never gates the producer, however far
+  // behind the cursor falls. Only a `workflow.call` parent that declared
+  // `on_emitted` gates.
+  //
+  // The stream ends after the terminal entry. Watching an execution that has
+  // already finished replays its recorded entries and then ends, so a cursor
+  // survives disconnects, daemon restarts, and reconnects.
+  rpc WatchOutput(WatchOutputRequest) returns (stream WatchOutputResponse);
+
+  // Stop a running execution. Permitted while SCHEDULED or ACTIVE; the
+  // execution reaches the terminal status CANCELLED.
+  //
+  // Idempotent: cancelling an already-CANCELLED execution returns OK. An
+  // execution that already reached COMPLETED or FAILED stays there and returns
+  // FAILED_PRECONDITION — the first terminal state wins, because the daemon's
+  // delivery is at-least-once and a late cancel must not rewrite history.
+  // Unknown execution_id returns NOT_FOUND.
+  //
+  // Cancellation cascades to sub-workflows this run is awaiting, since their
+  // results can no longer be observed — that is, sub-workflows invoked with
+  // `workflow.call`. It does NOT touch executions started with
+  // `workflow.spawn` — those are independent top-level executions with their
+  // own lifecycle, and must be cancelled by id.
+  rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
+
   // Delete a terminal execution's record (its summary, input/env, and the
   // snapshotted bundle). Permitted only when the execution is terminal
-  // (COMPLETED or FAILED); a SCHEDULED or ACTIVE execution returns
-  // FAILED_PRECONDITION and must be cancelled first (cancellation is a separate
-  // concern, not yet defined). Unknown execution_id returns NOT_FOUND. Does not
-  // affect any detached sub-workflow executions this run started — those are
-  // independent top-level executions with their own records.
+  // (COMPLETED, FAILED, or CANCELLED); a SCHEDULED or ACTIVE execution returns
+  // FAILED_PRECONDITION and must be cancelled first, via CancelExecution.
+  // Unknown execution_id returns NOT_FOUND. Does not affect any sub-workflow
+  // executions this run started with `workflow.spawn` — those are independent
+  // top-level executions with their own records.
   rpc DeleteExecution(DeleteExecutionRequest) returns (DeleteExecutionResponse);
 }
 
@@ -93,6 +130,57 @@ message GetExecutionResponse {
   // Ambient environment this execution ran with (echoed back like `input`;
   // non-secret only). Empty if none was provided.
   map<string, string> env = 15;
+
+  // What the execution returned — the `result` terminal entry of its output
+  // stream. Set only once the execution has completed successfully; a failed or
+  // cancelled run reports `summary.error` or `summary.cancellation_reason`
+  // instead.
+  //
+  // This is the terminal entry only. Any values the execution emitted along the
+  // way are read with WatchOutput, which is the whole stream.
+  optional google.protobuf.Struct result = 18;
+}
+
+message WatchOutputRequest {
+  // Unique execution identifier
+  string execution_id = 1;
+
+  // Where to start in the execution's output stream. Omitted means from the
+  // beginning — entry 0.
+  oneof position {
+    // The last N entries.
+    int64 tail = 2;
+
+    // Entries after this sequence number. A cursor: pass the `sequence` of the
+    // last entry processed to resume exactly where a previous read stopped,
+    // with no gap and no repeat.
+    int64 after = 3;
+  }
+}
+
+// One entry in an execution's output stream.
+message WatchOutputResponse {
+  // Position in this execution's stream. Dense and monotonic from 0. Doubles as
+  // the cursor for WatchOutputRequest.after.
+  int64 sequence = 1;
+
+  // When the entry was appended.
+  google.protobuf.Timestamp timestamp = 2;
+
+  // Exactly one is set. A stream is zero or more `value` entries followed by
+  // exactly one terminal entry — `result` or `error` — which is always last.
+  oneof entry {
+    // A value the workflow emitted with a TransitionRule `emit` action.
+    google.protobuf.Struct value = 3;
+
+    // Terminal: the workflow returned this via a `result` action. Absent
+    // structure (a path that ended without returning) is an empty Struct, not a
+    // missing entry — the stream always terminates.
+    google.protobuf.Struct result = 4;
+
+    // Terminal: the workflow failed or was cancelled.
+    utos.workflow.v1.WorkflowError error = 5;
+  }
 }
 
 message ListExecutionsRequest {
@@ -107,6 +195,20 @@ message ListExecutionsRequest {
 message ListExecutionsResponse {
   // Array of execution summaries
   repeated ExecutionSummary executions = 1;
+}
+
+message CancelExecutionRequest {
+  // Unique execution identifier
+  string execution_id = 1;
+
+  // Optional human-readable reason, recorded on the execution and surfaced in
+  // its summary. Not interpreted by the daemon.
+  optional string reason = 2;
+}
+
+message CancelExecutionResponse {
+  // Status after the call — always EXECUTION_STATUS_CANCELLED on success.
+  ExecutionStatus status = 1;
 }
 
 message DeleteExecutionRequest {

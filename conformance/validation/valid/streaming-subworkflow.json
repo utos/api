@@ -1,0 +1,124 @@
+{
+  "entryPoint": "acme/watcher:1.0.0",
+  "workflows": {
+    "acme/watcher:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "watcher",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "A call activity consuming a producer's emitted values in order."
+      },
+      "spec": {
+        "activities": {
+          "watch": {
+            "workflow": {
+              "workflow": "acme/mailbox:1.0.0",
+              "startActivity": "poll",
+              "input": {
+                "cursor": ""
+              },
+              "call": {
+                "onEmitted": [
+                  {
+                    "transition": {
+                      "name": "handle",
+                      "input": {
+                        "messages": "{{ output.messages }}"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "onSuccess": [
+              {
+                "result": {
+                  "done": true
+                }
+              }
+            ],
+            "onFailure": [
+              {
+                "transition": {
+                  "name": "error"
+                }
+              }
+            ]
+          },
+          "handle": {
+            "http": {
+              "method": "POST",
+              "url": "https://api.example.com/ingest",
+              "body": "{\"messages\": \"{{ input.messages }}\"}"
+            },
+            "onSuccess": [
+              {
+                "transition": {
+                  "name": "watch"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "acme/mailbox:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "mailbox",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "A producer: polls, emits each batch, waits, repeats."
+      },
+      "spec": {
+        "activities": {
+          "poll": {
+            "http": {
+              "method": "GET",
+              "url": "{{ env.MAIL_API }}/messages?since={{ input.cursor }}"
+            },
+            "onSuccess": [
+              {
+                "condition": "{{ output.messages | array.size > 0 }}",
+                "emit": {
+                  "value": {
+                    "messages": "{{ output.messages }}"
+                  },
+                  "transition": {
+                    "name": "wait",
+                    "input": {
+                      "cursor": "{{ output.cursor }}"
+                    }
+                  }
+                }
+              },
+              {
+                "transition": {
+                  "name": "wait",
+                  "input": {
+                    "cursor": "{{ input.cursor }}"
+                  }
+                }
+              }
+            ]
+          },
+          "wait": {
+            "timer": {
+              "duration": "30s"
+            },
+            "onSuccess": [
+              {
+                "transition": {
+                  "name": "poll"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
