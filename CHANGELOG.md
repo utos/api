@@ -5,7 +5,9 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.12]
+## [0.0.13]
+
+## [0.0.12] - 2026-08-12
 
 ### Added
 - **Execution output streams** (`docs/execution-output-stream.md`) — every execution now has one ordered, durable, cursor-addressable stream of the values it produced. A workflow appends to it with the new `emit` transition action; a caller consumes it with `CallActivityConfig.on_emitted`; anyone else reads it with `ExecutionService.WatchOutput`. This makes a continuously-producing sub-workflow expressible for the first time: previously a sub-workflow could say something to its caller exactly once, at termination, so "watch a mailbox and hand me each new message" forced the loop — and with it the poll interval, backoff, pagination and cursor — into the caller, turning the sub-workflow's internal state into its public return contract
