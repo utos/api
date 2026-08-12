@@ -27,6 +27,7 @@ normative — every implementation is expected to conform.
 | [Workflow source format](docs/workflow-source-format.md) | What authors write, and its mapping onto `utos.workflow.v1.Workflow` |
 | [Bundle validation rules](docs/workflow-validation.md) | Every rule a `WorkflowBundle` must satisfy, with stable error codes |
 | [Canonical bundle digest](docs/canonical-bundle-digest.md) | The deterministic byte form behind `WorkflowReference.digest` |
+| [Execution output streams](docs/execution-output-stream.md) | What `emit`, `onEmitted` and `WatchOutput` guarantee: ordering, durability, back-pressure |
 
 Cross-implementation fixtures live in [`conformance/`](conformance/) and are run as tests by each
 SDK, so conformance is demonstrable rather than assumed.

@@ -1,0 +1,33 @@
+{
+  "entryPoint": "greet:1.0.0",
+  "workflows": {
+    "greet:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "greet",
+        "version": "1.0.0",
+        "description": "An emit action with no target: emit is not terminal, so it must say where to go."
+      },
+      "spec": {
+        "activities": {
+          "produce": {
+            "http": {
+              "method": "GET",
+              "url": "https://api.example.com/items"
+            },
+            "onSuccess": [
+              {
+                "emit": {
+                  "value": {
+                    "item": "{{ output.item }}"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
