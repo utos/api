@@ -11,10 +11,11 @@
       },
       "spec": {
         "activities": {
-          "call": {
+          "notify": {
             "workflow": {
               "workflow": "acme/send-email:2.1.0",
-              "startActivity": "send"
+              "startActivity": "send",
+              "spawn": {}
             }
           }
         }

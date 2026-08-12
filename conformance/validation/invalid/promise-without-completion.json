@@ -6,13 +6,13 @@
       "kind": "Workflow",
       "metadata": {
         "name": "greet",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "description": "Promise activity with no completion mode set."
       },
       "spec": {
         "activities": {
           "fan-out": {
             "promise": {
-              "count": {},
               "branches": [
                 {
                   "name": "first",

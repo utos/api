@@ -8,7 +8,7 @@
         "name": "orchestrator",
         "namespace": "acme",
         "version": "1.0.0",
-        "description": "Exercises every activity kind, a back-edge, and both terminal keywords."
+        "description": "Exercises every activity kind and mode, a back-edge, and both terminal keywords."
       },
       "spec": {
         "activities": {
@@ -58,8 +58,9 @@
           },
           "fan-out": {
             "promise": {
-              "mode": "count",
-              "requiredCount": 2,
+              "count": {
+                "requiredCount": 2
+              },
               "branches": [
                 {
                   "name": "notify",
@@ -100,7 +101,24 @@
               "input": {
                 "recipient": "{{ input.email }}"
               },
-              "detached": true
+              "spawn": {}
+            },
+            "onSuccess": [
+              {
+                "transition": {
+                  "name": "confirm-receipt"
+                }
+              }
+            ]
+          },
+          "confirm-receipt": {
+            "workflow": {
+              "workflow": "acme/send-email:2.1.0",
+              "startActivity": "send",
+              "input": {
+                "recipient": "{{ input.email }}"
+              },
+              "call": {}
             },
             "onSuccess": [
               {

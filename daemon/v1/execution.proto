@@ -31,18 +31,19 @@ service ExecutionService {
   // Unknown execution_id returns NOT_FOUND.
   //
   // Cancellation cascades to sub-workflows this run is awaiting, since their
-  // results can no longer be observed. It does NOT touch detached sub-workflow
-  // executions — those are independent top-level executions with their own
-  // lifecycle, and must be cancelled by id.
+  // results can no longer be observed — that is, sub-workflows invoked with
+  // `workflow.call`. It does NOT touch executions started with
+  // `workflow.spawn` — those are independent top-level executions with their
+  // own lifecycle, and must be cancelled by id.
   rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
 
   // Delete a terminal execution's record (its summary, input/env, and the
   // snapshotted bundle). Permitted only when the execution is terminal
   // (COMPLETED, FAILED, or CANCELLED); a SCHEDULED or ACTIVE execution returns
   // FAILED_PRECONDITION and must be cancelled first, via CancelExecution.
-  // Unknown execution_id returns NOT_FOUND. Does not affect any detached
-  // sub-workflow executions this run started — those are independent top-level
-  // executions with their own records.
+  // Unknown execution_id returns NOT_FOUND. Does not affect any sub-workflow
+  // executions this run started with `workflow.spawn` — those are independent
+  // top-level executions with their own records.
   rpc DeleteExecution(DeleteExecutionRequest) returns (DeleteExecutionResponse);
 }
 

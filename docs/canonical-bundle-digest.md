@@ -47,10 +47,16 @@ arise. The rules:
    `entryPoint`, `onSuccess`, `startActivity`). No field overrides `json_name`, so this is
    deterministic, and it matches the k8s-style authored YAML.
 2. **Presence / defaults — per proto3 JSON.** Omit implicit-presence scalars at their default
-   (`detached:false`, `requiredCount:0`, `""`), omit unset `optional` fields, and omit empty maps
-   and empty repeated fields. An explicitly-set `optional` field is emitted even at its default
-   value (presence is tracked). *(This also means the built bundle's emptied `dependencies` map is
-   simply absent from the digest.)*
+   (`requiredCount:0`, `""`), omit unset `optional` fields, and omit empty maps and empty repeated
+   fields. An explicitly-set `optional` field is emitted even at its default value (presence is
+   tracked). *(This also means the built bundle's emptied `dependencies` map is simply absent from
+   the digest.)*
+   **A set message field is emitted even when it has no fields of its own** — presence is what it
+   carries. The mode discriminators (`CallActivityConfig`, `SpawnActivityConfig`, `PromiseAllConfig`,
+   `PromiseAnyConfig`, `PromiseRaceConfig`) are all empty messages, so a `workflow.call` activity
+   serializes `"call": {}` and a `workflow.spawn` serializes `"spawn": {}`. An implementation that
+   "prunes empty objects" as a tidiness pass would erase the distinction and make two activities
+   with different behavior hash identically.
 3. **Maps → JSON objects, keys sorted by JCS.** Applies to `workflows`, `dependencies`,
    `activities`, `headers`, and every `google.protobuf.Struct.fields` — recursively.
 4. **Order-significant lists → JSON arrays, order preserved.** JCS never reorders arrays. Applies
@@ -72,7 +78,7 @@ A small bundle, shown as its canonical JSON. Note: **shown pretty-printed for re
 bytes that are actually hashed are JCS-minified** (no insignificant whitespace).
 
 Source (informal), authored with `activities` in the order `start`, then `done`; a
-`detached:false` on an activity; and an empty `dependencies`:
+`requiredCount:0` left at its default; and an empty `dependencies`:
 
 ```json
 {
@@ -115,8 +121,11 @@ What this demonstrates:
 - **List order preserved:** the two `onSuccess` rules keep their authored order (the conditional
   rule stays first, the fallback second) — sorting them would break first-match-wins.
 - **Defaults / empties omitted:** `dependencies` (empty), `on_failure` (empty), `done`'s empty
-  `onSuccess`, the unset `optional` `description`/`registry`, and any `detached:false` are all
+  `onSuccess`, the unset `optional` `description`/`registry`, and any `requiredCount:0` are all
   absent.
+- **Empty messages kept:** neither activity here selects a mode, but a `workflow.call` activity
+  would carry `"call": {}` — a set message field survives even with nothing inside it, because
+  presence is the whole payload.
 - **`Duration`** as the string `"5s"`.
 
 Digest: `sha256:` `TBD (reference impl)` — see Conformance.
