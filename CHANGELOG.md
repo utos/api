@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.12]
 
+### Added
+- `ExecutionService.CancelExecution` — stop a `SCHEDULED` or `ACTIVE` execution, which reaches the new terminal status `EXECUTION_STATUS_CANCELLED` (enum value `12`, previously reserved). This closes a hole the spec already depended on: `TransitionTarget` documents an infinite polling loop as running "until the execution is cancelled", while `DeleteExecution` documented cancellation as "a separate concern, not yet defined". Cancellation is idempotent, and an execution that already reached `COMPLETED` or `FAILED` stays there and returns `FAILED_PRECONDITION` — the first terminal state wins, because daemon delivery is at-least-once and a late cancel must not rewrite history
+- `ExecutionSummary.cancellation_reason` — why an execution was cancelled, set only when the status is `CANCELLED`. Kept separate from `error`, which stays reserved for genuine failures: a poller cancelled on purpose has not failed
+- Cancellation cascade semantics: an awaited sub-workflow is cancelled with its parent, since its result can no longer be observed, while a detached execution is not — it is an independent top-level execution and must be cancelled by id, consistent with the existing detached-lifecycle rule
+
+### Changed
+- `DeleteExecution` now admits `CANCELLED` alongside `COMPLETED` and `FAILED` as a deletable terminal state, and its comment points at `CancelExecution` instead of describing cancellation as undefined
+- `ExecutionSummary.finished_at` is documented as the moment any terminal status was reached, cancellation included
+
 ## [0.0.11] - 2026-08-11
 
 ### Added
