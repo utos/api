@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.13]
 
+### Fixed
+- `CallActivityConfig.on_emitted` cited `UTOS-C405` for the rule that every handler rule must carry a `transition` action. That code does not exist — the rule shipped as `UTOS-C404`, which is what `docs/workflow-validation.md`, the `on-emitted-with-result` conformance fixture and the 0.0.12 changelog all name. `C405` was left over from the numbering used before the rule was folded, and the proto was the one place it survived. Comment-only, but the validation document states that the **code and path are the contract and the message text deliberately is not**, so a wrong code in a normative proto is the spec contradicting itself about the part implementers are told to rely on
+
 ## [0.0.12] - 2026-08-12
 
 ### Added
