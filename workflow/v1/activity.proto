@@ -193,7 +193,7 @@ message CallActivityConfig {
   // subscription and cancels the child, since nothing will observe it again.
   //
   // Every rule here must carry a `transition` action; `result` and `emit` have
-  // no meaning inside an emission handler (UTOS-C405).
+  // no meaning inside an emission handler (UTOS-C404).
   //
   // Ordering needs no separate rule. Emitted values and the terminal result are
   // entries in one ordered stream walked by one cursor, so `on_emitted` cannot
