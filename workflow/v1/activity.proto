@@ -94,8 +94,14 @@ message TransitionTarget {
   // Leaf string values may contain {{ }} template expressions.
   // Available context: `input` (data the source activity received),
   // `output` (raw output from the source activity's execution),
+  // `error` (why it failed, on the on_failure path),
+  // `response` (the HTTP response, for an http activity, on either path),
   // `env` (the run's ambient environment map, available to every activity).
-  // If omitted, the source activity's raw output passes through as-is.
+  // `error` and `response` are not in scope when the *target* activity's own
+  // configuration is rendered, so anything a handler needs must be carried
+  // across in this transform.
+  // If omitted, the source activity's raw output passes through as-is — or, on
+  // the failure path where there is no output, the failing activity's own input.
   optional google.protobuf.Struct input = 2;
 }
 
@@ -108,6 +114,13 @@ message TransitionTarget {
 // the data this activity received (workflow input for the start activity,
 // or the preceding transition's transform result for subsequent activities),
 // and {{ env.x }} to reference the run's ambient environment (e.g. a base URL).
+//
+// An http activity surfaces its result twice, on different axes: `output` is
+// the parsed JSON body, in common with every other activity kind, while
+// `response` carries the transport facts — status, headers, bodyText — that
+// have no analogue on the other kinds. `response` is available on the failure
+// path as well, which is what lets an on_failure rule tell a 429 from a 401
+// without an error-code taxonomy. A non-2xx is a failure.
 message HttpActivityConfig {
   // HTTP method (e.g., "GET", "POST", "PUT", "DELETE")
   string method = 1;
@@ -115,7 +128,13 @@ message HttpActivityConfig {
   // Target URL — supports {{ input.x }} templates
   string url = 2;
 
-  // HTTP headers — values support {{ input.x }} templates
+  // HTTP headers — values support {{ input.x }} templates.
+  // Names are matched case-insensitively, as HTTP requires. Content headers
+  // belong here too: a `content-type` declared here is the body's media type,
+  // and defaults to "application/json" when absent. Implementations must not
+  // send the body as JSON regardless — a form-encoded body is what an OAuth
+  // token refresh needs, so a workflow that cannot express one cannot renew
+  // its own credential.
   map<string, string> headers = 3;
 
   // Request body (ignored for GET/DELETE) — supports {{ input.x }} templates

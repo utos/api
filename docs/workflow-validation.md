@@ -44,8 +44,8 @@ Reserved terminal keywords (`end`, `error`) are matched **case-insensitively**, 
 rejecting them as activity names and when recognizing them as transition targets. They are a
 closed two-word vocabulary, and `End` can only have been meant as the keyword.
 
-> The reference daemon currently resolves activity names with `OrdinalIgnoreCase`, which diverges
-> from this rule and from its own runtime lookup. Adopting these rules corrects it.
+The reference daemon conforms: activity lookup is an ordinal map, and `OrdinalIgnoreCase` appears
+only where this rule requires it, on the reserved keywords.
 
 ---
 
@@ -151,8 +151,8 @@ sub-workflow.
 needs no target; `emit` appends a value and carries on, so a rule that emits without saying where
 to go next is a dead end rather than a return, and would strand the execution.
 
-> The reference daemon currently checks `onSuccess` targets only. Applying `UTOS-T003` uniformly
-> closes that gap.
+The shared validator walks `onSuccess`, `onFailure`, `onEmitted` and `PromiseBranch.target` alike,
+so `UTOS-T003` applies uniformly.
 
 ## `UTOS-C1##` — HTTP configuration
 
