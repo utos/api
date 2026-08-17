@@ -284,16 +284,42 @@ over `ExecutionService.WatchOutput`.
 
 ### Templates
 
-String values may embed `{{ }}` expressions. Three context objects are available:
+String values may embed `{{ }}` expressions. Five context objects are available:
 
 | Context | Meaning |
 |---|---|
 | `input` | What this activity received — the workflow input for the start activity, or the preceding transition's transform result |
-| `output` | The raw output of the activity the transition is leaving |
+| `output` | The raw output of the activity the transition is leaving. Meaningful on the success path; an activity that failed produced none |
+| `error` | Why the activity failed — `code` and `message`. Meaningful on the `onFailure` path |
+| `response` | The HTTP response, when the activity was `http` — `status`, `headers`, `bodyText`. Available on **both** paths |
 | `env` | The run's ambient environment, supplied per execution (`utos run --env`) |
 
 `env` is deliberately not declared in the workflow document. It is per-run ambient state, the
 analogue of `docker run -e`, and is always `string → string`.
+
+`error` is kept separate from `output` rather than replacing it, because a failed activity produced
+no output and overloading one name with the other's meaning would let a condition written for the
+success path silently read error fields on the failure path.
+
+**Every context is always defined, and so is every key within `error` and `response`** — with null
+values where they do not apply. A condition may therefore name `response.status` on an activity that
+made no request, or after a request that never got a response at all, and evaluate `false` rather
+than failing. Implementations must not leave these undefined: the failure that would raise is raised
+*while a failure is already being handled*, which is the worst moment for it.
+
+`error` and `response` describe the activity a transition is **leaving**. Neither is in scope when
+the *target* activity's own `url`, `headers` or `body` are rendered — that is a fresh scope of
+`input` and `env`. Anything a handler needs must be carried across in the transition's `input`
+transform:
+
+```yaml
+onFailure:
+  - condition: "{{ response.status == 429 }}"
+    transition:
+      name: backoff
+      input:
+        retryAfter: "{{ response.headers['Retry-After'] }}"   # or it is gone
+```
 
 ## Building a bundle
 

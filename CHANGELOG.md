@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.13]
 
+### Added
+- **`error` and `response` template contexts** (`docs/workflow-source-format.md`). `error` — `code` and `message` — is what an `on_failure` rule reads. It is a sibling of `output` rather than a replacement: a failed activity produced no output, and overloading one name with the other's meaning would let a condition written for the success path silently read error fields on the failure path. `response` — `status`, `headers`, `bodyText` — carries an HTTP activity's transport facts on **both** paths, and is what lets a failure rule tell a 429 from a 401 without an error-code taxonomy. Folding those into `output` instead would have made `output` mean structurally different things per activity kind — wrapped for `http`, a child's result for `workflow.call`, a branch map for `promise` — so `{{ output.messages }}` would work after a sub-workflow but need `{{ output.body.messages }}` after a request
+- **Every context, and every key within `error` and `response`, is always defined**, with null values where they do not apply, so a condition may name `response.status` on an activity that made no request and evaluate `false`. Normative rather than an implementation nicety: the failure it otherwise raises is raised *while a failure is already being handled*
+- Both describe the activity a transition is **leaving**, and are deliberately not in scope when the target activity's own `url`, `headers` or `body` are rendered — that is a fresh scope of `input` and `env`. Anything a handler needs must be carried across in the transition's `input` transform
+
+### Changed
+- `HttpActivityConfig.headers` states that **content headers belong there too**: a `content-type` declared by the author is the body's media type, defaulting to `application/json` when absent. Previously the field said only that values support templates, which left an implementation free to send every body as JSON — and a form-encoded body is what an OAuth token refresh needs, so a workflow that cannot express one cannot renew its own credential
+- `HttpActivityConfig` states that a non-2xx response is a failure, and that `response` remains readable across it
+- `TransitionTarget.input` defines its pass-through on the failure path: with no transform, the target receives the **failing activity's own input**. The success-path rule — pass the source's output through — has no meaning where there is no output, and leaving it undefined invites an implementation to resolve it to nothing and rewind a failure handler to the run's original input
+
 ### Fixed
+- `docs/workflow-validation.md` carried two "the reference daemon currently diverges" notes that were no longer true — it resolves activity names ordinally, and the shared validator walks `onSuccess`, `onFailure`, `onEmitted` and `PromiseBranch.target` alike. A note describing a divergence that has been closed is worse than none, since a reader takes it as the current state of the world
 - `CallActivityConfig.on_emitted` cited `UTOS-C405` for the rule that every handler rule must carry a `transition` action. That code does not exist — the rule shipped as `UTOS-C404`, which is what `docs/workflow-validation.md`, the `on-emitted-with-result` conformance fixture and the 0.0.12 changelog all name. `C405` was left over from the numbering used before the rule was folded, and the proto was the one place it survived. Comment-only, but the validation document states that the **code and path are the contract and the message text deliberately is not**, so a wrong code in a normative proto is the spec contradicting itself about the part implementers are told to rely on
 
 ## [0.0.12] - 2026-08-12
