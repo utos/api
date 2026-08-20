@@ -204,12 +204,20 @@ message CallActivityConfig {
   // once per value the child emits, in stream order, before the child's
   // terminal entry reaches `on_success`.
   //
-  // Consuming is a loop, expressed with the transitions that already exist: the
-  // handler path must transition back to this activity to take the next value.
-  // Re-entering the activity while a subscription is live consumes rather than
-  // starting a second child. Leaving the handler path any other way — `end`,
-  // `result`, or a transition into an unrelated part of the graph — ends the
-  // subscription and cancels the child, since nothing will observe it again.
+  // Consuming is a loop and the handler is its body. When the handler path runs
+  // out of transitions it has finished one iteration, and control returns to
+  // this activity for the next value — as a promise branch returns to its
+  // promise. Re-entering the activity while a subscription is live consumes
+  // rather than starting a second child. A rule list where nothing matches is
+  // exhausted too, so a filtering handler skips that value and takes the next.
+  //
+  // Transitioning back to this activity by name is still permitted and means
+  // exactly the same thing. It is not required, which is what lets the last
+  // activity of a handler chain be used outside a handler as well.
+  //
+  // The subscription ends when the consuming execution terminates — `end` or a
+  // `result` — or when it is cancelled or fails. The child is cancelled with it,
+  // since nothing will observe it again.
   //
   // Every rule here must carry a `transition` action; `result` and `emit` have
   // no meaning inside an emission handler (UTOS-C404).
@@ -299,7 +307,14 @@ message PromiseBranch {
   // May reference `env` (the run's ambient environment) alongside the branch context
   optional string condition = 3;
 
-  // Which activity to start and input mapping for this branch
+  // Which activity to start and input mapping for this branch.
+  //
+  // Any activity in this workflow. A workflow-kind target names another workflow
+  // to run and is a pointer rather than the work; any other target *is* the work,
+  // and the branch runs this same workflow starting from it. That every branch is
+  // a separate execution is how an implementation fans out, not a shape an author
+  // has to arrange — so requiring a `workflow.call` here would reject documents
+  // this specification accepts.
   TransitionTarget target = 4;
 }
 
