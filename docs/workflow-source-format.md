@@ -261,8 +261,7 @@ handle:
   method: POST
   url: https://api.example.com/ingest
   body: '{"messages": {{ input.messages }}}'
-  onSuccess:
-    - transition: { name: watch }     # back-edge: take the next value
+  # No transition. The handler is finished, so the next value is taken.
 ```
 
 Three things follow from this being one ordered stream rather than a side channel:
@@ -274,9 +273,15 @@ Three things follow from this being one ordered stream rather than a side channe
   it, so a producer cannot run ahead and pile up unconsumed values. A poller simply returns a
   larger batch next time, which is the desired behaviour — see
   [`execution-output-stream.md`](execution-output-stream.md).
-- **Leaving ends the subscription.** The handler must transition back to the call activity. Going
-  anywhere else — `end`, a `result`, another part of the graph — ends the subscription and cancels
-  the producer, because nothing will observe it again.
+- **A finished handler goes back for the next value.** When the handler path runs out of
+  transitions it has completed one iteration, and control returns to the call activity — the same
+  way a promise branch returns to its promise. Transitioning back by name is still allowed and
+  means the same thing; it is simply no longer required, so the last activity of a handler chain
+  does not have to know which call activity dispatched it. A rule list that matches nothing skips
+  that value and takes the next.
+- **Terminating ends the subscription.** `end` or a `result` finishes the consuming execution,
+  which cancels the producer, because nothing will observe it again. That is how a consumer stops
+  early.
 
 A `workflow.call` without `onEmitted` ignores emissions and simply awaits the result, and
 `workflow.spawn` has no consumer at all. Emitted values are still recorded either way, readable

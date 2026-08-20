@@ -67,15 +67,25 @@ single entry: one emission carrying five thousand records is still one emission.
 rather than a gap — batch size is pagination policy, and pagination policy belongs to the producer,
 which is the encapsulation this feature exists to enable.
 
-Consuming is a loop built from transitions that already exist. The `on_emitted` handler path must
-transition back to the call activity; re-entering it while a subscription is live consumes the
-next entry rather than starting a second child.
+Consuming is a loop, and the handler is its body. When the handler path runs out of transitions it
+has finished, and control returns to the call activity for the next entry — the same way a promise
+branch returns to its promise. Re-entering the call activity while a subscription is live consumes
+the next entry rather than starting a second child.
+
+A handler may still transition back to the call activity by name, and an explicit back-edge means
+exactly what falling off the end means. What it no longer has to be is remembered: a handler chain's
+last activity does not need to know which call activity dispatched it, so the same activity can be
+used inside a handler and outside one.
+
+The same rule covers a handler that declines a value. An `on_emitted` rule list where no condition
+matches is exhausted, so the value is skipped and the next one taken — a filtering consumer, not an
+abandoned loop.
 
 ## Subscription lifetime
 
-A subscription ends when the handler path leaves without returning to the call activity — via
-`end`, a `result`, or a transition into an unrelated part of the graph — or when the consuming
-execution is cancelled or fails.
+A subscription ends when the consuming path terminates — `end` or a `result` — or when the
+consuming execution is cancelled or fails. Running out of transitions inside a handler is not
+leaving: it is how one iteration of the loop finishes.
 
 **When a subscription ends, the producer is cancelled** (`EXECUTION_STATUS_CANCELLED`). Nothing
 will observe it again, and a gated producer would otherwise block forever on a cursor that will
