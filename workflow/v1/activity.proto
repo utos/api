@@ -388,7 +388,7 @@ message DispatchRule {
   // The document to dispatch — a `spec.dependencies` alias. Required
   // (UTOS-C501).
   //
-  // `self` is **not** legal here (UTOS-S009), and the restriction is what makes
+  // `self` is **not** legal here (UTOS-S011), and the restriction is what makes
   // the paragraph above true. A handler in another document cannot transition
   // into the dispatching flow, because transitions do not cross documents; a
   // handler in the *same* document can, and re-entering the call activity that

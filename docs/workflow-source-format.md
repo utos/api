@@ -79,7 +79,7 @@ an implied default registry is impossible.
 `self` is a reserved value meaning *this document*. It needs no `dependencies` entry, and
 `UTOS-S004` excepts it.
 
-**It is legal in exactly one place: a promise branch's `workflow`** (`UTOS-S009`). Everywhere else
+**It is legal in exactly one place: a promise branch's `workflow`** (`UTOS-S011`). Everywhere else
 a document is named — a `workflow.call` or `workflow.spawn` activity, an `onEmitted` rule — it is
 rejected.
 
@@ -433,11 +433,12 @@ Source-format errors detected during this pass — as distinct from the bundle r
 | `UTOS-S006` | Two documents resolve to the same canonical identity with differing content |
 | `UTOS-S007` | An activity's `type` is missing, is not a known activity kind, or stops short of a mode the kind requires (e.g. bare `workflow` rather than `workflow.call`) |
 | `UTOS-S008` | A mapping contains duplicate keys |
-| `UTOS-S009` | `self` is used anywhere other than a promise branch's `workflow` |
+| `UTOS-S009` | A document is not well-formed, or does not match the workflow schema |
+| `UTOS-S011` | `self` is used anywhere other than a promise branch's `workflow` |
 
 `UTOS-S004` covers every place a document is named — a `workflow.call` or `workflow.spawn`
 activity, a promise branch, and an `onEmitted` rule — because they all resolve the same way.
-`UTOS-S009` is the exception to that symmetry: only a promise branch may write `self`. See
+`UTOS-S011` is the exception to that symmetry: only a promise branch may write `self`. See
 [`self`](#self) for why the one place it is load-bearing is also the only place it is safe.
 
 ## Worked example

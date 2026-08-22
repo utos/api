@@ -73,7 +73,7 @@ the call activity for the next entry. Re-entering the call activity while a subs
 consumes the next entry rather than starting a second child.
 
 It is necessarily a *different* document — `self` is rejected on an `onEmitted` rule
-(`UTOS-S009`) — and that is what makes the previous sentence safe rather than merely true today.
+(`UTOS-S011`) — and that is what makes the previous sentence safe rather than merely true today.
 Transitions do not cross documents, so nothing a handler does can reach the call activity that
 dispatched it. Were the handler in the consumer's own graph, a transition back to that activity
 would run in the handler's execution, which holds no subscription, and start a second producer
