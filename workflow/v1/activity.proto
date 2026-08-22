@@ -316,15 +316,22 @@ message PromiseBranch {
   //
   // Rendered against the branch scope, so `{{ alias.x }}` may be used with
   // for_each to name each expansion after the item it processes —
-  // `addon-{{ item.sku }}` yields `addon-SKU-123`. The rendered names must be
-  // distinct within one promise, which is a run-time failure rather than a
-  // validation rule: rendering requires the collection, and validation does not
-  // evaluate templates. A name with no template renders to itself, so a static
-  // branch is unaffected.
+  // `addon-{{ item.sku }}` yields `addon-SKU-123`, which says which expansion
+  // failed where an ordinal says nothing.
   //
-  // Implementations must not disambiguate by appending an ordinal. `item_0`
-  // says nothing about which expansion failed, which is the entire reason the
-  // name is templatable.
+  // Names must be distinct within one promise, since they key the output map.
+  // Where a for_each expansion renders names that are not distinct — most
+  // obviously a name with no template in it, which renders to itself every
+  // time — an implementation appends `_{index}` to each of that expansion's
+  // names. That fallback is what keeps a plain `name: item` over a collection
+  // working, and it applies per expansion, not per promise: a templated name
+  // that is already distinct is used exactly as written.
+  //
+  // A collision *between* branches is not disambiguated, because renaming a
+  // branch the author named deliberately would be worse than refusing. Where
+  // both names are literal it is UTOS-C307; where rendering produces it, it is
+  // a run-time failure, since rendering needs the collection and validation
+  // does not evaluate templates.
   string name = 1;
 
   // Optional; expands this branch once per item in the collection
@@ -337,6 +344,12 @@ message PromiseBranch {
 
   // The document this branch runs — a `spec.dependencies` alias, or `self` for
   // the document the promise is declared in. Required (UTOS-C501).
+  //
+  // This is the one place `self` is legal, and the reason it exists: recursive
+  // fan-out is otherwise inexpressible, because a document reaching itself
+  // through an alias is a cycle (UTOS-S005). Such a branch terminates on its
+  // data — a for_each over an empty collection starts nothing — rather than on
+  // a depth rule.
   string workflow = 5;
 
   // Which activity in that document the branch starts from. Required
@@ -372,8 +385,20 @@ message DispatchRule {
   // evaluated in order and the first match wins, as elsewhere.
   optional string condition = 1;
 
-  // The document to dispatch — a `spec.dependencies` alias, or `self`.
-  // Required (UTOS-C501).
+  // The document to dispatch — a `spec.dependencies` alias. Required
+  // (UTOS-C501).
+  //
+  // `self` is **not** legal here (UTOS-S009), and the restriction is what makes
+  // the paragraph above true. A handler in another document cannot transition
+  // into the dispatching flow, because transitions do not cross documents; a
+  // handler in the *same* document can, and re-entering the call activity that
+  // dispatched it starts a second producer rather than resuming the first —
+  // once per value, without bound. That was the shape `on_emitted` handlers
+  // were written in before they became documents, so it is a mistake authors
+  // arrive at by leaving old text alone rather than by writing something new.
+  //
+  // Nothing is lost by refusing it. A handler processes one value; giving it a
+  // document of its own is what this message is for.
   string workflow = 2;
 
   // Which activity in that document to start from. Required (UTOS-C502), and
