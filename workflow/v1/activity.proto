@@ -263,6 +263,12 @@ message PromiseActivityConfig {
   // Completion mode — exactly one must be set. Operates on *started* branches,
   // i.e. after condition filtering.
   //
+  // Once the mode is satisfied — or, for `all`, once a branch has failed — any
+  // branch still running is cancelled before the activity completes, so a
+  // resolved promise means no branch of it is still spending. A branch is
+  // arbitrary workflow content, and a losing `race` branch that POSTs an order
+  // does so whether or not anyone can still read its result.
+  //
   // Named `completion` rather than `mode` because `mode` is a reserved field
   // name in this message. In the source format the mode is part of the `type`
   // discriminator path: `promise.all`, `promise.any`, `promise.race`,
