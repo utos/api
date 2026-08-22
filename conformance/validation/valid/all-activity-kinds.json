@@ -64,9 +64,8 @@
               "branches": [
                 {
                   "name": "notify",
-                  "target": {
-                    "name": "send-notification"
-                  }
+                  "workflow": "acme/orchestrator:1.0.0",
+                  "startActivity": "send-notification"
                 },
                 {
                   "name": "addon-{{ item.sku }}",
@@ -75,11 +74,10 @@
                     "alias": "item"
                   },
                   "condition": "{{ item.enabled }}",
-                  "target": {
-                    "name": "provision-addon",
-                    "input": {
-                      "sku": "{{ item.sku }}"
-                    }
+                  "workflow": "acme/orchestrator:1.0.0",
+                  "startActivity": "provision-addon",
+                  "input": {
+                    "sku": "{{ item.sku }}"
                   }
                 }
               ]

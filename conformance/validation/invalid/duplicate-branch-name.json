@@ -1,0 +1,47 @@
+{
+  "entryPoint": "greet:1.0.0",
+  "workflows": {
+    "greet:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "greet",
+        "version": "1.0.0",
+        "description": "Two branches of one promise claiming the same key in its output map."
+      },
+      "spec": {
+        "activities": {
+          "fan-out": {
+            "promise": {
+              "all": {},
+              "branches": [
+                {
+                  "name": "leg",
+                  "workflow": "greet:1.0.0",
+                  "startActivity": "first"
+                },
+                {
+                  "name": "leg",
+                  "workflow": "greet:1.0.0",
+                  "startActivity": "second"
+                }
+              ]
+            }
+          },
+          "first": {
+            "http": {
+              "method": "GET",
+              "url": "https://api.example.com/first"
+            }
+          },
+          "second": {
+            "http": {
+              "method": "GET",
+              "url": "https://api.example.com/second"
+            }
+          }
+        }
+      }
+    }
+  }
+}

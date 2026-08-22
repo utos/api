@@ -67,15 +67,47 @@ single entry: one emission carrying five thousand records is still one emission.
 rather than a gap — batch size is pagination policy, and pagination policy belongs to the producer,
 which is the encapsulation this feature exists to enable.
 
-Consuming is a loop built from transitions that already exist. The `on_emitted` handler path must
-transition back to the call activity; re-entering it while a subscription is live consumes the
-next entry rather than starting a second child.
+Consuming is a loop, and the handler is its body. The handler is a **document**, dispatched once
+per entry: its execution terminating is what finishes one iteration, and control then returns to
+the call activity for the next entry. Re-entering the call activity while a subscription is live
+consumes the next entry rather than starting a second child.
+
+### A handler's emissions relay
+
+A handler's terminal result is discarded, and an `emit` inside a handler is appended to the
+**consumer's** own stream and handed to the consumer's caller.
+
+That is not a new rule so much as the preservation of an old one. A handler used to run inside the
+consumer's own execution, so a value it emitted was already the consumer's — the three-level relay
+that behaviour supports is load-bearing, and moving the handler into its own execution would have
+broken it silently. Relaying across the new boundary keeps it, and needs no keyword: emit in the
+handler, it comes out of the consumer.
+
+Mechanically the consumer dispatches the handler as a consuming call of its own, so per entry:
+take V from the producer → dispatch the handler → the handler emits E → append E to our stream,
+hand it to our caller, wait for that acknowledgement → acknowledge the handler → the handler
+terminates → acknowledge the producer → take the next entry. Every wait is on something further
+*up* the chain, never back down it, so the chain cannot close into a cycle and cannot deadlock.
+
+A consumer therefore holds two subscriptions at once — the producer's, and the current handler's.
+One handler runs at a time, so one slot suffices, but it is live state and must survive a
+continue-as-new the way the producer subscription does.
+
+**Promise branches do not relay.** For a handler this preserves existing behaviour; for a branch
+it would change it, and N branches run concurrently, so interleaving their emissions into one
+stream would order them nondeterministically — which costs the single-ordered-stream property
+everything above depends on. A branch's emissions stay on the branch execution's own stream, where
+`WatchOutput` can still read them.
+
+The same rule covers a handler that declines a value. An `on_emitted` rule list where no condition
+matches is exhausted, so the value is skipped and the next one taken — a filtering consumer, not an
+abandoned loop.
 
 ## Subscription lifetime
 
-A subscription ends when the handler path leaves without returning to the call activity — via
-`end`, a `result`, or a transition into an unrelated part of the graph — or when the consuming
-execution is cancelled or fails.
+A subscription ends when the consuming path terminates — `end` or a `result` — or when the
+consuming execution is cancelled or fails. Running out of transitions inside a handler is not
+leaving: it is how one iteration of the loop finishes.
 
 **When a subscription ends, the producer is cancelled** (`EXECUTION_STATUS_CANCELLED`). Nothing
 will observe it again, and a gated producer would otherwise block forever on a cursor that will

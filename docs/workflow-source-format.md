@@ -74,6 +74,31 @@ of the file that declares it. Anything else is a **registry reference** of the f
 ambient configuration — so a reference means the same thing on every machine and typosquatting on
 an implied default registry is impossible.
 
+### `self`
+
+`self` is a reserved value wherever a document is named — `workflow: self` means *this document*.
+It needs no `dependencies` entry, and `UTOS-S004` excepts it.
+
+It exists because requiring a document would otherwise make recursion inexpressible: a document
+that dispatched itself through an alias would be a document depending on itself, which `UTOS-S005`
+rejects as a cycle. `self` sidesteps that check rather than relaxing it — it never enters the
+dependency graph, so there is nothing to detect.
+
+Reserving the word breaks nothing that was previously legal. Bare `self` has no `./` prefix and no
+`{registry}/{namespace}/{name}:{version}` shape, so it was already a malformed reference
+(`UTOS-S002`).
+
+Two things it is not:
+
+- **Not re-entry.** `workflow: self` starts a **fresh child execution** of this document from the
+  named activity. It does not resume, re-enter or loop the current one; a back-edge transition is
+  what does that.
+- **Not a pin.** It resolves to whatever this document's canonical identity is at build time, so a
+  version bump carries automatically and cannot be forgotten in one place.
+
+Resolution happens in the CLI like any alias: the build rewrites `self` to this document's own
+canonical identity, so **the daemon never sees the word.**
+
 ## Activities
 
 `spec.activities` maps an activity name to its definition. The names `end` and `error` are
@@ -220,6 +245,36 @@ Each rule carries exactly one action:
 A transition may name an already-visited activity. That back-edge is a loop, and is the intended
 way to express polling.
 
+### Fanning out
+
+A promise branch dispatches a document, with the same three keys an `onEmitted` rule uses —
+`workflow`, `startActivity`, `input`. That sameness is the point: dispatching work is one shape to
+learn, whichever construct is doing it.
+
+```yaml
+fan-out:
+  type: promise.all
+  branches:
+    - name: "addon-{{ item.sku }}"
+      forEach: { collection: "{{ input.addons }}", alias: item }
+      workflow: pricer                # a dependency alias, or `self`
+      startActivity: quote
+      input: { sku: "{{ item.sku }}" }
+  onSuccess:
+    - result: { quotes: "{{ output }}" }
+```
+
+`branch.name` keys the promise output map and is unrelated to the document named. It is rendered
+in the branch scope, so a `forEach` expansion can be named after the item it processes —
+`addon-SKU-123` rather than `item_0`, which is the difference between a failure report that
+identifies itself and one that does not. **The rendered names must be distinct within one
+promise**; that is a run-time failure, not a validation error, because rendering needs the
+collection and validation does not evaluate templates.
+
+A branch names a document rather than an activity in the current one. `workflow: self` covers
+fanning out over this same document — including a branch that re-enters the promise activity
+itself, which is how recursive fan-out is written.
+
 ### Emitting and consuming values
 
 A workflow that emits is a producer; a `workflow.call` activity that declares `onEmitted` is its
@@ -252,17 +307,20 @@ watch:
   workflow: mailbox
   startActivity: poll
   onEmitted:
-    - transition: { name: handle }
+    - workflow: ingester            # a dependency alias, or `self`
+      startActivity: ingest
+      input: { messages: "{{ output.messages }}" }
   onSuccess:
     - result: { done: true }
+```
 
-handle:
+```yaml
+# In the handler document — only handler work, because that is all it can hold.
+ingest:
   type: http
   method: POST
   url: https://api.example.com/ingest
   body: '{"messages": {{ input.messages }}}'
-  onSuccess:
-    - transition: { name: watch }     # back-edge: take the next value
 ```
 
 Three things follow from this being one ordered stream rather than a side channel:
@@ -274,9 +332,18 @@ Three things follow from this being one ordered stream rather than a side channe
   it, so a producer cannot run ahead and pile up unconsumed values. A poller simply returns a
   larger batch next time, which is the desired behaviour — see
   [`execution-output-stream.md`](execution-output-stream.md).
-- **Leaving ends the subscription.** The handler must transition back to the call activity. Going
-  anywhere else — `end`, a `result`, another part of the graph — ends the subscription and cancels
-  the producer, because nothing will observe it again.
+- **A finished handler goes back for the next value.** The handler is a document, and its
+  execution terminating is what completes one iteration; control then returns to the call activity
+  for the next value. A rule list that matches nothing skips that value and takes the next, which
+  is how a filtering consumer is written.
+- **A handler's result is discarded, and its emissions relay.** A handler has one way to say
+  something, and it is to `emit`: a value emitted inside a handler is appended to the *consumer's*
+  own output stream and handed to the consumer's caller. That preserves what happened when the
+  handler ran inline in the consumer, and needs no keyword. A terminal `result` in a handler has
+  nowhere to go and is dropped — two ways to surface a value would be one too many.
+- **Terminating ends the subscription.** `end` or a `result` finishes the consuming execution,
+  which cancels the producer, because nothing will observe it again. That is how a consumer stops
+  early.
 
 A `workflow.call` without `onEmitted` ignores emissions and simply awaits the result, and
 `workflow.spawn` has no consumer at all. Emitted values are still recorded either way, readable
@@ -284,16 +351,42 @@ over `ExecutionService.WatchOutput`.
 
 ### Templates
 
-String values may embed `{{ }}` expressions. Three context objects are available:
+String values may embed `{{ }}` expressions. Five context objects are available:
 
 | Context | Meaning |
 |---|---|
 | `input` | What this activity received — the workflow input for the start activity, or the preceding transition's transform result |
-| `output` | The raw output of the activity the transition is leaving |
+| `output` | The raw output of the activity the transition is leaving. Meaningful on the success path; an activity that failed produced none |
+| `error` | Why the activity failed — `code` and `message`. Meaningful on the `onFailure` path |
+| `response` | The HTTP response, when the activity was `http` — `status`, `headers`, `bodyText`. Available on **both** paths |
 | `env` | The run's ambient environment, supplied per execution (`utos run --env`) |
 
 `env` is deliberately not declared in the workflow document. It is per-run ambient state, the
 analogue of `docker run -e`, and is always `string → string`.
+
+`error` is kept separate from `output` rather than replacing it, because a failed activity produced
+no output and overloading one name with the other's meaning would let a condition written for the
+success path silently read error fields on the failure path.
+
+**Every context is always defined, and so is every key within `error` and `response`** — with null
+values where they do not apply. A condition may therefore name `response.status` on an activity that
+made no request, or after a request that never got a response at all, and evaluate `false` rather
+than failing. Implementations must not leave these undefined: the failure that would raise is raised
+*while a failure is already being handled*, which is the worst moment for it.
+
+`error` and `response` describe the activity a transition is **leaving**. Neither is in scope when
+the *target* activity's own `url`, `headers` or `body` are rendered — that is a fresh scope of
+`input` and `env`. Anything a handler needs must be carried across in the transition's `input`
+transform:
+
+```yaml
+onFailure:
+  - condition: "{{ response.status == 429 }}"
+    transition:
+      name: backoff
+      input:
+        retryAfter: "{{ response.headers['Retry-After'] }}"   # or it is gone
+```
 
 ## Building a bundle
 
@@ -317,11 +410,14 @@ Source-format errors detected during this pass — as distinct from the bundle r
 | `UTOS-S001` | A dependency alias is empty, or declared twice |
 | `UTOS-S002` | A dependency reference is malformed |
 | `UTOS-S003` | A local dependency file does not exist or cannot be read |
-| `UTOS-S004` | A sub-workflow activity names an alias that is not declared in `spec.dependencies` |
+| `UTOS-S004` | A `workflow` value names an alias that is not declared in `spec.dependencies`. `self` is excepted — it names this document and needs no entry |
 | `UTOS-S005` | The dependency graph contains a cycle |
 | `UTOS-S006` | Two documents resolve to the same canonical identity with differing content |
 | `UTOS-S007` | An activity's `type` is missing, is not a known activity kind, or stops short of a mode the kind requires (e.g. bare `workflow` rather than `workflow.call`) |
 | `UTOS-S008` | A mapping contains duplicate keys |
+
+`UTOS-S004` covers every place a document is named — a `workflow.call` or `workflow.spawn`
+activity, a promise branch, and an `onEmitted` rule — because they all resolve the same way.
 
 ## Worked example
 

@@ -1,0 +1,8 @@
+{
+  "issues": [
+    {
+      "code": "UTOS-C307",
+      "path": "workflows[\"greet:1.0.0\"].spec.activities[\"fan-out\"].promise.branches[1].name"
+    }
+  ]
+}
