@@ -1,0 +1,8 @@
+{
+  "issues": [
+    {
+      "code": "UTOS-C501",
+      "path": "workflows[\"greet:1.0.0\"].spec.activities[\"fan-out\"].promise.branches[0].workflow"
+    }
+  ]
+}

@@ -8,7 +8,7 @@
         "name": "watcher",
         "namespace": "acme",
         "version": "1.0.0",
-        "description": "An onEmitted rule that returns, and one targeting an activity that does not exist."
+        "description": "An onEmitted rule entering the handler document at an activity it does not declare."
       },
       "spec": {
         "activities": {
@@ -19,17 +19,30 @@
               "call": {
                 "onEmitted": [
                   {
-                    "result": {
-                      "done": true
-                    }
-                  },
-                  {
-                    "transition": {
-                      "name": "missing"
-                    }
+                    "workflow": "acme/ingester:1.0.0",
+                    "startActivity": "nonexistent"
                   }
                 ]
               }
+            }
+          }
+        }
+      }
+    },
+    "acme/ingester:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "ingester",
+        "namespace": "acme",
+        "version": "1.0.0"
+      },
+      "spec": {
+        "activities": {
+          "ingest": {
+            "http": {
+              "method": "POST",
+              "url": "https://api.example.com/ingest"
             }
           }
         }
@@ -40,15 +53,15 @@
       "kind": "Workflow",
       "metadata": {
         "name": "mailbox",
-        "version": "1.0.0",
-        "namespace": "acme"
+        "namespace": "acme",
+        "version": "1.0.0"
       },
       "spec": {
         "activities": {
           "poll": {
             "http": {
               "method": "GET",
-              "url": "https://mail.example.com/messages"
+              "url": "https://api.example.com/messages"
             }
           }
         }

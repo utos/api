@@ -7,16 +7,16 @@
       "metadata": {
         "name": "greet",
         "version": "1.0.0",
-        "description": "Promise activity with no completion mode set."
+        "description": "A promise branch that does not say which document it dispatches."
       },
       "spec": {
         "activities": {
           "fan-out": {
             "promise": {
+              "all": {},
               "branches": [
                 {
                   "name": "first",
-                  "workflow": "greet:1.0.0",
                   "startActivity": "leg"
                 }
               ]

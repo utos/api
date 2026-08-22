@@ -204,23 +204,20 @@ message CallActivityConfig {
   // once per value the child emits, in stream order, before the child's
   // terminal entry reaches `on_success`.
   //
-  // Consuming is a loop and the handler is its body. When the handler path runs
-  // out of transitions it has finished one iteration, and control returns to
-  // this activity for the next value — as a promise branch returns to its
-  // promise. Re-entering the activity while a subscription is live consumes
-  // rather than starting a second child. A rule list where nothing matches is
-  // exhausted too, so a filtering handler skips that value and takes the next.
+  // Consuming is a loop and the handler is its body. Each value dispatches a
+  // document, which runs to termination; that ends one iteration and this
+  // activity takes the next value. A rule list where nothing matches skips that
+  // value, so a filtering handler simply takes the next one.
   //
-  // Transitioning back to this activity by name is still permitted and means
-  // exactly the same thing. It is not required, which is what lets the last
-  // activity of a handler chain be used outside a handler as well.
+  // A handler's terminal result is discarded. It has one way to say something
+  // and that is to `emit`: a handler's emissions propagate to this execution's
+  // own output stream, so a value emitted inside a handler comes out of the
+  // consumer, exactly as it did when the handler ran inline. Relaying needs no
+  // keyword.
   //
   // The subscription ends when the consuming execution terminates — `end` or a
   // `result` — or when it is cancelled or fails. The child is cancelled with it,
   // since nothing will observe it again.
-  //
-  // Every rule here must carry a `transition` action; `result` and `emit` have
-  // no meaning inside an emission handler (UTOS-C404).
   //
   // Ordering needs no separate rule. Emitted values and the terminal result are
   // entries in one ordered stream walked by one cursor, so `on_emitted` cannot
@@ -229,7 +226,7 @@ message CallActivityConfig {
   //
   // Empty (the default) means this caller ignores emissions: it awaits only the
   // terminal entry. It is not privileged, so it does not gate the producer.
-  repeated TransitionRule on_emitted = 1;
+  repeated DispatchRule on_emitted = 1;
 }
 
 // Start the sub-workflow and move on immediately (fire-and-forget). The child
@@ -245,11 +242,17 @@ message SpawnActivityConfig {}
 // Configuration for concurrent fan-out (promise) activities.
 //
 // Each promise activity execution is an independent concurrency scope: its
-// branch outputs do not leak across invocations. Branch targets may name a
-// promise or ancestor activity, so nested and looping fan-out (a branch
-// transitioning back into a parent that fans out again) is permitted. Bounding
-// total spawned work — concurrency, recursion depth, execution budget — is a
-// daemon responsibility, not a constraint of this spec.
+// branch outputs do not leak across invocations. A branch may dispatch the
+// document it is declared in (`workflow: self`), and may enter it at the
+// promise activity itself, so nested and recursive fan-out is permitted.
+// Bounding total spawned work — concurrency, recursion depth, execution budget
+// — is a daemon responsibility, not a constraint of this spec.
+//
+// Branch emissions do not propagate to the promise's own output stream, unlike
+// an emission handler's. N branches run concurrently, so interleaving their
+// emissions into one stream would order them nondeterministically and cost the
+// single-ordered-stream property the rest of the spec rests on. Branch
+// emissions remain readable on each branch execution's own stream.
 message PromiseActivityConfig {
   // Former `string mode` + `int32 required_count`, replaced by the `completion`
   // oneof below. required_count now lives on PromiseCountConfig, the only mode
@@ -300,9 +303,28 @@ message PromiseCountConfig {
 
 // A single branch within a promise activity
 // Supports static, conditional, and dynamic (for_each) branches
+//
+// A branch dispatches a *document*, not an activity: the same `workflow` /
+// `start_activity` / `input` triple a DispatchRule carries. See DispatchRule
+// for what dispatch means and why both constructs spell it the same way.
 message PromiseBranch {
-  // Key in the promise output map (e.g., "pricing")
-  // Supports {{ alias.x }} templates when combined with for_each
+  // Former `TransitionTarget target`, replaced by the dispatch fields below.
+  reserved 4;
+  reserved "target";
+
+  // Key in the promise output map (e.g., "pricing").
+  //
+  // Rendered against the branch scope, so `{{ alias.x }}` may be used with
+  // for_each to name each expansion after the item it processes —
+  // `addon-{{ item.sku }}` yields `addon-SKU-123`. The rendered names must be
+  // distinct within one promise, which is a run-time failure rather than a
+  // validation rule: rendering requires the collection, and validation does not
+  // evaluate templates. A name with no template renders to itself, so a static
+  // branch is unaffected.
+  //
+  // Implementations must not disambiguate by appending an ordinal. `item_0`
+  // says nothing about which expansion failed, which is the entire reason the
+  // name is templatable.
   string name = 1;
 
   // Optional; expands this branch once per item in the collection
@@ -313,15 +335,55 @@ message PromiseBranch {
   // May reference `env` (the run's ambient environment) alongside the branch context
   optional string condition = 3;
 
-  // Which activity to start and input mapping for this branch.
-  //
-  // Any activity in this workflow. A workflow-kind target names another workflow
-  // to run and is a pointer rather than the work; any other target *is* the work,
-  // and the branch runs this same workflow starting from it. That every branch is
-  // a separate execution is how an implementation fans out, not a shape an author
-  // has to arrange — so requiring a `workflow.call` here would reject documents
-  // this specification accepts.
-  TransitionTarget target = 4;
+  // The document this branch runs — a `spec.dependencies` alias, or `self` for
+  // the document the promise is declared in. Required (UTOS-C501).
+  string workflow = 5;
+
+  // Which activity in that document the branch starts from. Required
+  // (UTOS-C502), and must name an activity it declares (UTOS-C503).
+  string start_activity = 6;
+
+  // Transform producing the dispatched document's run input. Leaf string values
+  // may contain {{ }} expressions, evaluated in the branch scope — the for_each
+  // alias, `input`, `env`. Omitted means the promise activity's own input passes
+  // through unchanged.
+  optional google.protobuf.Struct input = 7;
+}
+
+// A dispatch: run a document, starting from one of its activities.
+//
+// The same shape a PromiseBranch carries, minus the fan-out parts, and that
+// sameness is deliberate — dispatching work is one thing to learn, whether a
+// promise is fanning out over it or an emission handler is processing a value
+// with it. Neither names an activity in the dispatching document; both name a
+// document and where to enter it.
+//
+// Requiring a document is what keeps `spec.activities` honest. An activity that
+// existed only to serve a branch or a handler used to sit in the same flat map
+// as the main flow with nothing to mark it, and what it meant depended on where
+// it was used — running out of transitions ends a run on the main path but
+// finishes one iteration inside a handler. A reader who opens a dispatched
+// document now finds only that work.
+//
+// `workflow: self` covers the case the indirection existed to serve: dispatching
+// the current document, including recursively.
+message DispatchRule {
+  // Optional; skip this rule if the condition evaluates to false. Rules are
+  // evaluated in order and the first match wins, as elsewhere.
+  optional string condition = 1;
+
+  // The document to dispatch — a `spec.dependencies` alias, or `self`.
+  // Required (UTOS-C501).
+  string workflow = 2;
+
+  // Which activity in that document to start from. Required (UTOS-C502), and
+  // must name an activity it declares (UTOS-C503).
+  string start_activity = 3;
+
+  // Transform producing the dispatched document's run input. Leaf string values
+  // may contain {{ }} expressions. Omitted passes the dispatching context's
+  // value through unchanged — for an emission handler, the emitted value.
+  optional google.protobuf.Struct input = 4;
 }
 
 // Configuration for dynamic branch expansion over a collection

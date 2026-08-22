@@ -16,9 +16,8 @@
               "branches": [
                 {
                   "name": "first",
-                  "target": {
-                    "name": "leg"
-                  }
+                  "workflow": "greet:1.0.0",
+                  "startActivity": "leg"
                 }
               ]
             }
