@@ -142,17 +142,21 @@ activity does. The `path` names the level that is unset, e.g.
 | `UTOS-T003` | A `TransitionTarget.name` must resolve to an activity in the same workflow, or to a reserved terminal keyword |
 | `UTOS-T004` | `emit.transition` is required |
 
-`UTOS-T003` applies at **every** `TransitionTarget` site: `onSuccess`, `onFailure`,
-`PromiseBranch.target`, `onEmitted`, and `emit.transition`. The `path` identifies which.
-Resolution is scoped to the workflow that declares the transition — a target never crosses into a
-sub-workflow.
+`UTOS-T003` applies at **every** `TransitionTarget` site: `onSuccess`, `onFailure`, and
+`emit.transition`. The `path` identifies which. Resolution is scoped to the workflow that declares
+the transition — a target never crosses into a sub-workflow.
+
+Promise branches and `onEmitted` rules are **not** transition sites. They are dispatches, and what
+they name is a document rather than an activity in this one, so they are checked by
+`UTOS-C501`–`UTOS-C503` instead. That is the whole distinction the dispatch range exists to draw:
+a transition stays inside a workflow, a dispatch leaves it.
 
 `UTOS-T004` exists because `emit` is the one action that is not terminal. `result` ends a path and
 needs no target; `emit` appends a value and carries on, so a rule that emits without saying where
 to go next is a dead end rather than a return, and would strand the execution.
 
-The shared validator walks `onSuccess`, `onFailure`, `onEmitted` and `PromiseBranch.target` alike,
-so `UTOS-T003` applies uniformly.
+The shared validator walks `onSuccess` and `onFailure` alike, so `UTOS-T003` applies uniformly
+across both.
 
 ## `UTOS-C1##` — HTTP configuration
 
@@ -184,10 +188,20 @@ There is deliberately no maximum. A long wait is legitimate.
 | `UTOS-C302` | `requiredCount` must be greater than zero |
 | `UTOS-C303` | `branches` must contain at least one branch |
 | `UTOS-C304` | A branch `name` is required |
-| `UTOS-C305` | A branch `target` is required |
+| ~~`UTOS-C305`~~ | *Retired.* A branch `target` is required |
 | `UTOS-C306` | `forEach.collection` and `forEach.alias` are both required when `forEach` is present |
+| `UTOS-C307` | Two branches of one promise declare the same literal `name` |
 
-Branch `target.name` is covered by `UTOS-T002` and `UTOS-T003`.
+A branch dispatches a document, so what it names is checked by `UTOS-C501`–`UTOS-C503` along with
+every other dispatch. `UTOS-C305` is **retired, not renumbered**, for the same reason `UTOS-C301`
+is: `target` no longer exists, and a code is a stable contract.
+
+`UTOS-C307` is deliberately narrow. Branch names are rendered in the branch scope, and the
+rendered names must be distinct within one promise or the output map would lose an entry — but
+rendering needs the `forEach` collection, and these rules do not evaluate templates. What is
+statically knowable is that two *literal* names collide, which is the case worth catching at build
+time because it can never be anything else. A collision that only appears once a template is
+rendered is a run-time failure of the promise, reported by the executor.
 
 `UTOS-C301` is **retired, not renumbered**. The completion mode is a oneof rather than a string,
 so an unknown mode is no longer representable and the rule has nothing left to check; an unset
@@ -205,24 +219,46 @@ implementation had already written down.
 | `UTOS-C401` | `workflow` is required and non-empty |
 | `UTOS-C402` | `startActivity` is required and non-empty |
 | `UTOS-C403` | `startActivity` must name an activity in the referenced sub-workflow |
-| `UTOS-C404` | Every `call.onEmitted` rule's action must be a `transition` |
+| ~~`UTOS-C404`~~ | *Retired.* Every `call.onEmitted` rule's action must be a `transition` |
 
-All three apply to `workflow.call` and `workflow.spawn` alike: they check fields of the outer
-`WorkflowActivityConfig`, which both modes share. Which mode is set is `UTOS-A007`'s business.
+`UTOS-C401`–`UTOS-C403` apply to `workflow.call` and `workflow.spawn` alike: they check fields of
+the outer `WorkflowActivityConfig`, which both modes share. Which mode is set is `UTOS-A007`'s
+business.
 
 `UTOS-C403` is checkable precisely because a bundle is self-contained — the referenced workflow
 is present, by `UTOS-B006`.
 
-`call.onEmitted` is an ordinary transition list, so `UTOS-T001`–`UTOS-T004` apply to its rules
-exactly as they do to `onSuccess` — those violations report under their own codes, not under a
-sub-workflow one.
+`UTOS-C404` is **retired, not renumbered.** An `onEmitted` rule is no longer a transition rule, so
+there is no action left to narrow — the rule it expressed has nothing to attach to. What it was
+protecting against survives in the new shape by construction: a handler is a document, so it
+cannot transition into the consumer's flow, and it has no `result` to end the consumer with.
+`onEmitted` still exists only on `call`; `spawn` has no subscriber, so there is nothing to declare.
 
-`UTOS-C404` is the one thing that is specific to emission handlers: it narrows what they may do.
-`result` would end the parent mid-stream while values were still arriving, and `emit` would
-republish a child's value onto the parent's own stream from inside the handler consuming it —
-neither is a thing to express here. The handler's job is to process one value and transition,
-normally back to the call activity to take the next. `onEmitted` exists only on `call`; `spawn`
-has no subscriber, so there is nothing to declare.
+## `UTOS-C5##` — Dispatch
+
+| Code | Rule |
+|---|---|
+| `UTOS-C501` | `workflow` is required and non-empty |
+| `UTOS-C502` | `startActivity` is required and non-empty |
+| `UTOS-C503` | `startActivity` must name an activity in the dispatched workflow |
+
+A **dispatch** is "run this document, starting here": a `promise.branches` entry and a
+`call.onEmitted` rule, which carry the same three fields and mean the same thing by them.
+
+They share a range rather than each borrowing their construct's, because the alternative is two
+identical rules with different codes — and a code is what an implementation suppresses, cites in a
+message and asserts on in a test, so duplicating one duplicates all of that. A reader who has
+learned what `UTOS-C502` means has learned it everywhere.
+
+`UTOS-C503` is checkable for the same reason `UTOS-C403` is: the dispatched workflow is present in
+the bundle by `UTOS-B006`. By the time a bundle exists, `self` has already been rewritten to a
+canonical identity by the CLI, so these rules never see the word — an unresolvable alias is a
+source-format error (`UTOS-S004`), caught before a bundle is built.
+
+Note that `UTOS-C501`–`UTOS-C503` deliberately mirror `UTOS-C401`–`UTOS-C403` rather than
+replacing them. A `workflow.call` activity is not a dispatch: it is an activity in the current
+flow that waits for a result, and its failure is that activity's failure. A dispatch has no
+activity of its own.
 
 ---
 

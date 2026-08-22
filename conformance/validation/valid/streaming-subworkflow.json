@@ -22,11 +22,10 @@
               "call": {
                 "onEmitted": [
                   {
-                    "transition": {
-                      "name": "handle",
-                      "input": {
-                        "messages": "{{ output.messages }}"
-                      }
+                    "workflow": "acme/ingester:1.0.0",
+                    "startActivity": "ingest",
+                    "input": {
+                      "messages": "{{ output.messages }}"
                     }
                   }
                 ]
@@ -46,20 +45,27 @@
                 }
               }
             ]
-          },
-          "handle": {
+          }
+        }
+      }
+    },
+    "acme/ingester:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "ingester",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "An emission handler: one document, dispatched once per consumed value."
+      },
+      "spec": {
+        "activities": {
+          "ingest": {
             "http": {
               "method": "POST",
               "url": "https://api.example.com/ingest",
               "body": "{\"messages\": \"{{ input.messages }}\"}"
-            },
-            "onSuccess": [
-              {
-                "transition": {
-                  "name": "watch"
-                }
-              }
-            ]
+            }
           }
         }
       }
