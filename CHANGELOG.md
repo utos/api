@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.14]
 
+### Changed
+- **`self` is legal only on a promise branch** (`UTOS-S011`, `docs/workflow-source-format.md`, `PromiseBranch.workflow`, `DispatchRule.workflow`). 0.0.13 introduced it as "a reserved value wherever a document is named", which was broader than the reason for having it. The reason is that recursive fan-out is otherwise inexpressible — a document reaching itself through an alias is a cycle under `UTOS-S005` — and that argument applies to a promise branch and nowhere else. A `workflow.call`, a `workflow.spawn` and an `onEmitted` rule can all say what they mean with an ordinary dependency, so there `self` only saved a document
+- In one of those places it did worse than save a document. **An `onEmitted` rule naming `self` puts the handler back inside the consumer's own graph**, where a transition can reach the call activity that dispatched it — and in the handler's own execution, which holds no subscription, that does not resume the producer, it starts another one, once per value, without bound. `CallActivityConfig.on_emitted` has claimed since 0.0.13 that a handler "cannot transition into the consumer's flow"; that claim was false while `self` was permitted there, and is now true by construction rather than by rule. This is a shape authors arrive at by *leaving old text alone*: before handlers became documents, transitioning back to the call activity was how the loop was closed, so every consumer written against 0.0.12 carries one
+- Restricting it costs no expressiveness. An awaited self-call is a single-branch `promise.all`; a handler is per-value work, which having a document of its own is the entire point of. What it does cost is a file per handler until several documents may share one — which is the argument `plans/multi-document-files.md` was waiting for
+
+### Fixed
+- **`PromiseBranch.name` overstated the ordinal rule.** 0.0.13 said implementations "must not disambiguate by appending an ordinal" and that rendered names "must be distinct", which taken literally breaks every `forEach` branch with a plain `name: item` — a literal name renders to itself, so an expansion over three items claims one key three times. Worse, it breaks them at *run time*, on documents the shared validator accepts, which is the divergence 0.0.13 existed to close. The ordinal is now specified as what it should always have been: a **fallback**, applied per expansion when the rendered names within it are not distinct. A templated name that is already distinct is used exactly as written, which was the point of the change; a collision *between* branches is still refused rather than renamed
+
 ## [0.0.13] - 2026-08-22
 
 ### Added

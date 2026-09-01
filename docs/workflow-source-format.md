@@ -76,13 +76,31 @@ an implied default registry is impossible.
 
 ### `self`
 
-`self` is a reserved value wherever a document is named — `workflow: self` means *this document*.
-It needs no `dependencies` entry, and `UTOS-S004` excepts it.
+`self` is a reserved value meaning *this document*. It needs no `dependencies` entry, and
+`UTOS-S004` excepts it.
 
-It exists because requiring a document would otherwise make recursion inexpressible: a document
-that dispatched itself through an alias would be a document depending on itself, which `UTOS-S005`
-rejects as a cycle. `self` sidesteps that check rather than relaxing it — it never enters the
-dependency graph, so there is nothing to detect.
+**It is legal in exactly one place: a promise branch's `workflow`** (`UTOS-S011`). Everywhere else
+a document is named — a `workflow.call` or `workflow.spawn` activity, an `onEmitted` rule — it is
+rejected.
+
+It exists because requiring a document would otherwise make recursive fan-out inexpressible: a
+document that dispatched itself through an alias would be a document depending on itself, which
+`UTOS-S005` rejects as a cycle. `self` sidesteps that check rather than relaxing it — it never
+enters the dependency graph, so there is nothing to detect.
+
+That argument is what confines it. A recursive branch is the one construct with no other way to say
+what it means, and it terminates on its data: a `forEach` over an empty collection starts nothing,
+so a leaf ends the recursion without a depth rule. Nowhere else is `self` load-bearing — it would
+only save a document — and in one place it actively costs something:
+
+> An `onEmitted` rule naming `self` puts the handler back inside the consumer's own graph, where a
+> transition can reach the call activity that dispatched it. In a separate execution that does not
+> resume the producer, it starts **another** one — once per value, without bound. The handler is a
+> document precisely so that cannot happen, and `self` would undo it.
+
+That is not a hypothetical mistake. Before handlers became documents, transitioning back to the
+call activity was how a consumer's loop was closed, so the hazard is one an author arrives at by leaving
+old text alone rather than by writing something new.
 
 Reserving the word breaks nothing that was previously legal. Bare `self` has no `./` prefix and no
 `{registry}/{namespace}/{name}:{version}` shape, so it was already a malformed reference
@@ -415,9 +433,13 @@ Source-format errors detected during this pass — as distinct from the bundle r
 | `UTOS-S006` | Two documents resolve to the same canonical identity with differing content |
 | `UTOS-S007` | An activity's `type` is missing, is not a known activity kind, or stops short of a mode the kind requires (e.g. bare `workflow` rather than `workflow.call`) |
 | `UTOS-S008` | A mapping contains duplicate keys |
+| `UTOS-S009` | A document is not well-formed, or does not match the workflow schema |
+| `UTOS-S011` | `self` is used anywhere other than a promise branch's `workflow` |
 
 `UTOS-S004` covers every place a document is named — a `workflow.call` or `workflow.spawn`
 activity, a promise branch, and an `onEmitted` rule — because they all resolve the same way.
+`UTOS-S011` is the exception to that symmetry: only a promise branch may write `self`. See
+[`self`](#self) for why the one place it is load-bearing is also the only place it is safe.
 
 ## Worked example
 
