@@ -112,9 +112,15 @@ abandoned loop.
 
 ## Subscription lifetime
 
-A subscription ends when the consuming path terminates — `end` or a `result` — or when the
-consuming execution is cancelled or fails. Running out of transitions inside a handler is not
-leaving: it is how one iteration of the loop finishes.
+A subscription ends when the consumer decides to stop — an `onEmitted` rule carrying a
+`transition` or a `result` — or when the consuming execution terminates, is cancelled, or fails.
+A handler finishing is not leaving: it is how one iteration of the loop finishes.
+
+The first of those is the only exit reachable *from inside the loop*, and it is what makes the rest
+of this section describe something an author can actually do. While a consumer is consuming it is
+in neither `onSuccess` nor `onFailure` — both are reached after the producer has terminated — so a
+rule that can only dispatch leaves a consumer with exactly one way out: waiting for a producer that,
+for the poller this feature exists to serve, never ends.
 
 **When a subscription ends, the producer is cancelled** (`EXECUTION_STATUS_CANCELLED`). Nothing
 will observe it again, and a gated producer would otherwise block forever on a cursor that will

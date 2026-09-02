@@ -8,7 +8,7 @@
         "name": "watcher",
         "namespace": "acme",
         "version": "1.0.0",
-        "description": "An onEmitted rule entering the handler document at an activity it does not declare."
+        "description": "An onEmitted rule that matches a value and then does nothing with it."
       },
       "spec": {
         "activities": {
@@ -19,32 +19,10 @@
               "call": {
                 "onEmitted": [
                   {
-                    "handle": {
-                      "workflow": "acme/ingester:1.0.0",
-                      "startActivity": "nonexistent"
-                    }
+                    "condition": "{{ output.urgent }}"
                   }
                 ]
               }
-            }
-          }
-        }
-      }
-    },
-    "acme/ingester:1.0.0": {
-      "apiVersion": "utos.io/v1",
-      "kind": "Workflow",
-      "metadata": {
-        "name": "ingester",
-        "namespace": "acme",
-        "version": "1.0.0"
-      },
-      "spec": {
-        "activities": {
-          "ingest": {
-            "http": {
-              "method": "POST",
-              "url": "https://api.example.com/ingest"
             }
           }
         }

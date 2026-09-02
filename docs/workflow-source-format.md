@@ -325,12 +325,39 @@ watch:
   workflow: mailbox
   startActivity: poll
   onEmitted:
-    - workflow: ingester            # a dependency alias, or `self`
-      startActivity: ingest
-      input: { messages: "{{ output.messages }}" }
+    # This is what we were waiting for: stop, and finish with it.
+    - condition: "{{ output.subject == 'approved' }}"
+      result: { approvedBy: "{{ output.from }}" }
+
+    # Stop, but carry on with the rest of this workflow.
+    - condition: "{{ output.subject == 'cancelled' }}"
+      transition: { name: release-hold }
+
+    # Anything else: hand it to a document and come back for the next value.
+    - handle:
+        workflow: ingester          # a dependency alias; `self` is not legal here
+        startActivity: ingest
+        input: { messages: "{{ output.messages }}" }
   onSuccess:
-    - result: { done: true }
+    - result: { done: true }        # reached only when the mailbox itself ends
 ```
+
+An `onEmitted` rule is an optional `condition` and exactly one action:
+
+| Action | |
+|---|---|
+| `handle` | Run a document for this value, then take the next. The loop body. |
+| `transition` | Stop consuming; continue at an activity in **this** workflow. |
+| `result` | Stop consuming; end this workflow with that value. |
+
+`transition` and `result` end the subscription and cancel the producer, since nothing will observe
+it again. Without them a consumer has no way to stop consuming — its only exit is the producer
+terminating, which for an intentionally endless poller never happens.
+
+Note the two `result`s above mean the same thing and are reached differently: the one in
+`onEmitted` fires on a value while the mailbox is still running, the one in `onSuccess` only once
+the mailbox has finished on its own. An action's meaning does not change with the list it appears
+in; what changes is when the list is evaluated.
 
 ```yaml
 # In the handler document — only handler work, because that is all it can hold.

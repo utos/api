@@ -146,10 +146,14 @@ activity does. The `path` names the level that is unset, e.g.
 `emit.transition`. The `path` identifies which. Resolution is scoped to the workflow that declares
 the transition — a target never crosses into a sub-workflow.
 
-Promise branches and `onEmitted` rules are **not** transition sites. They are dispatches, and what
-they name is a document rather than an activity in this one, so they are checked by
+A **dispatch** is not a transition site. A promise branch, and the `handle` block of an `onEmitted`
+rule, name a document rather than an activity in this one, so they are checked by
 `UTOS-C501`–`UTOS-C503` instead. That is the whole distinction the dispatch range exists to draw:
 a transition stays inside a workflow, a dispatch leaves it.
+
+An `onEmitted` rule carrying a `transition` is therefore a transition site like any other — the
+rule is evaluated by the consumer, so its target is an activity in the consumer's own workflow.
+What is a dispatch and what is a transition is decided per action, not per construct.
 
 `UTOS-T004` exists because `emit` is the one action that is not terminal. `result` ends a path and
 needs no target; `emit` appends a value and carries on, so a rule that emits without saying where
@@ -241,9 +245,24 @@ cannot transition into the consumer's flow, and it has no `result` to end the co
 | `UTOS-C501` | `workflow` is required and non-empty |
 | `UTOS-C502` | `startActivity` is required and non-empty |
 | `UTOS-C503` | `startActivity` must name an activity in the dispatched workflow |
+| `UTOS-C504` | A `call.onEmitted` rule must carry an action |
 
-A **dispatch** is "run this document, starting here": a `promise.branches` entry and a
-`call.onEmitted` rule, which carry the same three fields and mean the same thing by them.
+A **dispatch** is "run this document, starting here": a `promise.branches` entry and the `handle`
+block of a `call.onEmitted` rule, which carry the same three fields and mean the same thing by
+them. `UTOS-C501`–`UTOS-C503` check a dispatch wherever one appears; a branch declares those fields
+flat, an emission rule nests them, and neither changes what is being checked.
+
+`UTOS-C504` is deliberately weak. An emission rule carries `handle`, `transition` or `result` as a
+proto `oneof`, so *two* actions cannot be expressed at all and there is nothing to check; what is
+left is a rule with **none**, which is a value that matched a condition and then did nothing. That
+is a dead end rather than a skip — an unmatched rule list already means "take the next value" — and
+is the same distinction `UTOS-T001` draws for a transition rule.
+
+A rule that carries `transition` is a transition site, so `UTOS-T003` applies to its target: it
+must resolve in the **consuming** workflow, which is the one the rule is declared in. That is not a
+weakening of the document boundary. The rule is evaluated by the consumer, in its own execution;
+only a dispatched *handler* is another document, and it still cannot name the consumer's
+activities (`UTOS-S011`).
 
 They share a range rather than each borrowing their construct's, because the alternative is two
 identical rules with different codes — and a code is what an implementation suppresses, cites in a
