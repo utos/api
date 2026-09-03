@@ -22,10 +22,18 @@
               "call": {
                 "onEmitted": [
                   {
-                    "workflow": "acme/ingester:1.0.0",
-                    "startActivity": "ingest",
-                    "input": {
-                      "messages": "{{ output.messages }}"
+                    "condition": "{{ output.done }}",
+                    "transition": {
+                      "name": "wrap-up"
+                    }
+                  },
+                  {
+                    "handle": {
+                      "workflow": "acme/ingester:1.0.0",
+                      "startActivity": "ingest",
+                      "input": {
+                        "messages": "{{ output.messages }}"
+                      }
                     }
                   }
                 ]
@@ -42,6 +50,19 @@
               {
                 "transition": {
                   "name": "error"
+                }
+              }
+            ]
+          },
+          "wrap-up": {
+            "http": {
+              "method": "POST",
+              "url": "https://api.example.com/wrap-up"
+            },
+            "onSuccess": [
+              {
+                "result": {
+                  "done": true
                 }
               }
             ]

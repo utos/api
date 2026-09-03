@@ -2,7 +2,7 @@
   "issues": [
     {
       "code": "UTOS-C503",
-      "path": "workflows[\"acme/watcher:1.0.0\"].spec.activities[\"watch\"].workflow.call.onEmitted[0].startActivity"
+      "path": "workflows[\"acme/watcher:1.0.0\"].spec.activities[\"watch\"].workflow.call.onEmitted[0].handle.startActivity"
     }
   ]
 }
