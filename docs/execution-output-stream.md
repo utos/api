@@ -72,6 +72,13 @@ per entry: its execution terminating is what finishes one iteration, and control
 the call activity for the next entry. Re-entering the call activity while a subscription is live
 consumes the next entry rather than starting a second child.
 
+It is necessarily a *different* document — `self` is rejected on an `onEmitted` rule
+(`UTOS-S011`) — and that is what makes the previous sentence safe rather than merely true today.
+Transitions do not cross documents, so nothing a handler does can reach the call activity that
+dispatched it. Were the handler in the consumer's own graph, a transition back to that activity
+would run in the handler's execution, which holds no subscription, and start a second producer
+instead of resuming the first.
+
 ### A handler's emissions relay
 
 A handler's terminal result is discarded, and an `emit` inside a handler is appended to the
@@ -105,14 +112,27 @@ abandoned loop.
 
 ## Subscription lifetime
 
-A subscription ends when the consuming path terminates — `end` or a `result` — or when the
-consuming execution is cancelled or fails. Running out of transitions inside a handler is not
-leaving: it is how one iteration of the loop finishes.
+A subscription ends when the consumer decides to stop — an `onEmitted` rule carrying a
+`transition` or a `result` — or when the consuming execution terminates, is cancelled, or fails.
+A handler finishing is not leaving: it is how one iteration of the loop finishes.
+
+The first of those is the only exit reachable *from inside the loop*, and it is what makes the rest
+of this section describe something an author can actually do. While a consumer is consuming it is
+in neither `onSuccess` nor `onFailure` — both are reached after the producer has terminated — so a
+rule that can only dispatch leaves a consumer with exactly one way out: waiting for a producer that,
+for the poller this feature exists to serve, never ends.
 
 **When a subscription ends, the producer is cancelled** (`EXECUTION_STATUS_CANCELLED`). Nothing
 will observe it again, and a gated producer would otherwise block forever on a cursor that will
 never advance. This is why cancellation is a prerequisite for this feature rather than an
 independent nicety.
+
+Where a rule ends the subscription, the cancellation happens **then**, not when the consuming
+execution eventually terminates. The two coincide for the other routes out — cancellation and
+failure end the consumer immediately — but a `transition` leaves the consumer running, possibly for
+a long time, and deferring to its terminal sweep would leave a producer parked on an
+acknowledgement that is never coming, holding an execution, an output stream and its context for
+the remainder. Ending the subscription and cancelling the producer are one event.
 
 The already-recorded entries are unaffected: cancelling the producer stops it emitting, it does
 not retract what it emitted.

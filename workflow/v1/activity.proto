@@ -226,7 +226,7 @@ message CallActivityConfig {
   //
   // Empty (the default) means this caller ignores emissions: it awaits only the
   // terminal entry. It is not privileged, so it does not gate the producer.
-  repeated DispatchRule on_emitted = 1;
+  repeated EmissionRule on_emitted = 1;
 }
 
 // Start the sub-workflow and move on immediately (fire-and-forget). The child
@@ -305,8 +305,10 @@ message PromiseCountConfig {
 // Supports static, conditional, and dynamic (for_each) branches
 //
 // A branch dispatches a *document*, not an activity: the same `workflow` /
-// `start_activity` / `input` triple a DispatchRule carries. See DispatchRule
-// for what dispatch means and why both constructs spell it the same way.
+// `start_activity` / `input` triple a HandlerDispatch carries, declared flat
+// here because a branch has no alternative action to disambiguate from. See
+// HandlerDispatch for what a dispatch means and why both constructs agree on
+// its content.
 message PromiseBranch {
   // Former `TransitionTarget target`, replaced by the dispatch fields below.
   reserved 4;
@@ -316,15 +318,22 @@ message PromiseBranch {
   //
   // Rendered against the branch scope, so `{{ alias.x }}` may be used with
   // for_each to name each expansion after the item it processes —
-  // `addon-{{ item.sku }}` yields `addon-SKU-123`. The rendered names must be
-  // distinct within one promise, which is a run-time failure rather than a
-  // validation rule: rendering requires the collection, and validation does not
-  // evaluate templates. A name with no template renders to itself, so a static
-  // branch is unaffected.
+  // `addon-{{ item.sku }}` yields `addon-SKU-123`, which says which expansion
+  // failed where an ordinal says nothing.
   //
-  // Implementations must not disambiguate by appending an ordinal. `item_0`
-  // says nothing about which expansion failed, which is the entire reason the
-  // name is templatable.
+  // Names must be distinct within one promise, since they key the output map.
+  // Where a for_each expansion renders names that are not distinct — most
+  // obviously a name with no template in it, which renders to itself every
+  // time — an implementation appends `_{index}` to each of that expansion's
+  // names. That fallback is what keeps a plain `name: item` over a collection
+  // working, and it applies per expansion, not per promise: a templated name
+  // that is already distinct is used exactly as written.
+  //
+  // A collision *between* branches is not disambiguated, because renaming a
+  // branch the author named deliberately would be worse than refusing. Where
+  // both names are literal it is UTOS-C307; where rendering produces it, it is
+  // a run-time failure, since rendering needs the collection and validation
+  // does not evaluate templates.
   string name = 1;
 
   // Optional; expands this branch once per item in the collection
@@ -337,6 +346,12 @@ message PromiseBranch {
 
   // The document this branch runs — a `spec.dependencies` alias, or `self` for
   // the document the promise is declared in. Required (UTOS-C501).
+  //
+  // This is the one place `self` is legal, and the reason it exists: recursive
+  // fan-out is otherwise inexpressible, because a document reaching itself
+  // through an alias is a cycle (UTOS-S005). Such a branch terminates on its
+  // data — a for_each over an empty collection starts nothing — rather than on
+  // a depth rule.
   string workflow = 5;
 
   // Which activity in that document the branch starts from. Required
@@ -367,23 +382,104 @@ message PromiseBranch {
 //
 // `workflow: self` covers the case the indirection existed to serve: dispatching
 // the current document, including recursively.
-message DispatchRule {
+message EmissionRule {
   // Optional; skip this rule if the condition evaluates to false. Rules are
-  // evaluated in order and the first match wins, as elsewhere.
+  // evaluated in order and the first match wins, as elsewhere. A list where
+  // nothing matches skips that value and takes the next — a filtering consumer,
+  // not an abandoned loop.
   optional string condition = 1;
 
-  // The document to dispatch — a `spec.dependencies` alias, or `self`.
-  // Required (UTOS-C501).
-  string workflow = 2;
+  // What to do with the value. Exactly one, and a rule with none is rejected
+  // (UTOS-C504); two is unrepresentable, which is why this is a oneof rather
+  // than three optional fields checked after the fact.
+  //
+  // The three answers a consumer has to "a value arrived", and the reason this
+  // is not simply a dispatch: `handle` continues the loop, while `transition`
+  // and `result` leave it. Without the latter two a consumer had no way to stop
+  // consuming at all — its only exit was the producer terminating, which for
+  // the poller this feature exists to serve is never.
+  oneof action {
+    // Run a document for this value, wait for it to finish, then come back for
+    // the next one. The loop body, and the only action that continues
+    // consuming.
+    //
+    // The producer stays parked for the duration, so values are handled one at
+    // a time and cannot pile up — the back-pressure described in
+    // docs/execution-output-stream.md is a consequence of this waiting, not a
+    // separate mechanism.
+    HandlerDispatch handle = 2;
+
+    // Stop consuming and continue at this activity, in the *consuming*
+    // workflow. The subscription ends and the producer is cancelled at that
+    // point — not when this workflow eventually terminates, which may be much
+    // later — since nothing will observe it again.
+    //
+    // Safe where a handler transitioning here would not be, and the difference
+    // is which execution evaluates it. This rule is evaluated by the consumer,
+    // in the consumer's own execution, so the target is an ordinary activity in
+    // the consumer's own graph (UTOS-T003). A dispatched handler runs in an
+    // execution of its own that holds no subscription, which is why it cannot
+    // name the consumer's flow at all — see UTOS-S011.
+    TransitionTarget transition = 3;
+
+    // Stop consuming and end the consumer with this value as its result. The
+    // subscription ends and the producer is cancelled, as above.
+    //
+    // The same action `on_success` carries, and it means the same thing there;
+    // what differs is when the list is evaluated. This one fires on a value
+    // while the producer is still running, that one only once it has finished.
+    //
+    // This is how "find one thing and return it" is written. Without it the
+    // only way to stop early was to make a handler fail, which ends the run as
+    // an error and loses the distinction between finishing early on purpose and
+    // breaking.
+    google.protobuf.Struct result = 4;
+  }
+}
+
+// Run a document, starting from one of its activities.
+//
+// The same triple a PromiseBranch carries, and deliberately so: dispatching
+// work is one thing to learn, whether a promise is fanning out over it or an
+// emission handler is processing a value with it. Neither names an activity in
+// the dispatching document; both name a document and where to enter it.
+//
+// A branch carries these fields flat while an emission rule nests them under
+// `handle`, which is the one asymmetry. A branch has no alternative actions, so
+// there is nothing for a wrapper to disambiguate; an emission rule has three,
+// and the block is what makes the choice visible rather than something the
+// author has to know from the field names.
+//
+// Requiring a document is what keeps `spec.activities` honest. An activity that
+// existed only to serve a branch or a handler used to sit in the same flat map
+// as the main flow with nothing to mark it, and what it meant depended on where
+// it was used. A reader who opens a dispatched document now finds only that
+// work.
+message HandlerDispatch {
+  // The document to dispatch — a `spec.dependencies` alias. Required
+  // (UTOS-C501).
+  //
+  // `self` is **not** legal here (UTOS-S011). A handler in another document
+  // cannot transition into the dispatching flow, because transitions do not
+  // cross documents; a handler in the *same* document can, and re-entering the
+  // call activity that dispatched it starts a second producer rather than
+  // resuming the first — once per value, without bound. That was the shape
+  // `on_emitted` handlers were written in before they became documents, so it
+  // is a mistake authors arrive at by leaving old text alone rather than by
+  // writing something new.
+  //
+  // A consumer that wants to reach its own flow says so with `transition`,
+  // which is evaluated in its own execution and carries none of that risk.
+  string workflow = 1;
 
   // Which activity in that document to start from. Required (UTOS-C502), and
   // must name an activity it declares (UTOS-C503).
-  string start_activity = 3;
+  string start_activity = 2;
 
   // Transform producing the dispatched document's run input. Leaf string values
   // may contain {{ }} expressions. Omitted passes the dispatching context's
   // value through unchanged — for an emission handler, the emitted value.
-  optional google.protobuf.Struct input = 4;
+  optional google.protobuf.Struct input = 3;
 }
 
 // Configuration for dynamic branch expansion over a collection

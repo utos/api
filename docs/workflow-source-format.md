@@ -76,13 +76,31 @@ an implied default registry is impossible.
 
 ### `self`
 
-`self` is a reserved value wherever a document is named — `workflow: self` means *this document*.
-It needs no `dependencies` entry, and `UTOS-S004` excepts it.
+`self` is a reserved value meaning *this document*. It needs no `dependencies` entry, and
+`UTOS-S004` excepts it.
 
-It exists because requiring a document would otherwise make recursion inexpressible: a document
-that dispatched itself through an alias would be a document depending on itself, which `UTOS-S005`
-rejects as a cycle. `self` sidesteps that check rather than relaxing it — it never enters the
-dependency graph, so there is nothing to detect.
+**It is legal in exactly one place: a promise branch's `workflow`** (`UTOS-S011`). Everywhere else
+a document is named — a `workflow.call` or `workflow.spawn` activity, an `onEmitted` rule — it is
+rejected.
+
+It exists because requiring a document would otherwise make recursive fan-out inexpressible: a
+document that dispatched itself through an alias would be a document depending on itself, which
+`UTOS-S005` rejects as a cycle. `self` sidesteps that check rather than relaxing it — it never
+enters the dependency graph, so there is nothing to detect.
+
+That argument is what confines it. A recursive branch is the one construct with no other way to say
+what it means, and it terminates on its data: a `forEach` over an empty collection starts nothing,
+so a leaf ends the recursion without a depth rule. Nowhere else is `self` load-bearing — it would
+only save a document — and in one place it actively costs something:
+
+> An `onEmitted` rule naming `self` puts the handler back inside the consumer's own graph, where a
+> transition can reach the call activity that dispatched it. In a separate execution that does not
+> resume the producer, it starts **another** one — once per value, without bound. The handler is a
+> document precisely so that cannot happen, and `self` would undo it.
+
+That is not a hypothetical mistake. Before handlers became documents, transitioning back to the
+call activity was how a consumer's loop was closed, so the hazard is one an author arrives at by leaving
+old text alone rather than by writing something new.
 
 Reserving the word breaks nothing that was previously legal. Bare `self` has no `./` prefix and no
 `{registry}/{namespace}/{name}:{version}` shape, so it was already a malformed reference
@@ -307,12 +325,44 @@ watch:
   workflow: mailbox
   startActivity: poll
   onEmitted:
-    - workflow: ingester            # a dependency alias, or `self`
-      startActivity: ingest
-      input: { messages: "{{ output.messages }}" }
+    # This is what we were waiting for: stop, and finish with it.
+    - condition: "{{ output.subject == 'approved' }}"
+      result: { approvedBy: "{{ output.from }}" }
+
+    # Stop, but carry on with the rest of this workflow.
+    - condition: "{{ output.subject == 'cancelled' }}"
+      transition: { name: release-hold }
+
+    # Anything else: hand it to a document and come back for the next value.
+    - handle:
+        workflow: ingester          # a dependency alias; `self` is not legal here
+        startActivity: ingest
+        input: { messages: "{{ output.messages }}" }
   onSuccess:
-    - result: { done: true }
+    - result: { done: true }        # reached only when the mailbox itself ends
 ```
+
+An `onEmitted` rule is an optional `condition` and exactly one action. What each does to **this**
+workflow and to the **producer** it is consuming:
+
+| Action | This workflow | The producer |
+|---|---|---|
+| `handle` | Runs the named document for this value and waits for it to finish, then takes the next value. | Stays parked until the handler finishes, so values arrive one at a time and never pile up. |
+| `transition` | Continues at the named activity, in this workflow. | Cancelled. |
+| `result` | Ends, with that value as its result. | Cancelled. |
+
+Only `handle` continues consuming. The other two leave the loop, and leaving it cancels the
+producer **at that point** rather than when this workflow eventually ends — nothing will observe it
+again, and a gated producer left running would sit on an acknowledgement that is never coming,
+holding an execution and a stream for as long as this workflow keeps going.
+
+Without those two a consumer has no way to stop consuming at all: its only exit is the producer
+terminating, which for an intentionally endless poller never happens.
+
+Note the two `result`s above mean the same thing and are reached differently: the one in
+`onEmitted` fires on a value while the mailbox is still running, the one in `onSuccess` only once
+the mailbox has finished on its own. An action's meaning does not change with the list it appears
+in; what changes is when the list is evaluated.
 
 ```yaml
 # In the handler document — only handler work, because that is all it can hold.
@@ -341,9 +391,12 @@ Three things follow from this being one ordered stream rather than a side channe
   own output stream and handed to the consumer's caller. That preserves what happened when the
   handler ran inline in the consumer, and needs no keyword. A terminal `result` in a handler has
   nowhere to go and is dropped — two ways to surface a value would be one too many.
-- **Terminating ends the subscription.** `end` or a `result` finishes the consuming execution,
-  which cancels the producer, because nothing will observe it again. That is how a consumer stops
-  early.
+- **A subscription outlives nothing.** It ends when a rule leaves the loop, and also when the
+  consuming execution terminates by any other route — an `end` or a `result` on some other path,
+  cancellation, failure. The producer is cancelled either way, because nothing will observe it
+  again. Only the first of those is reachable *while consuming*, which is why it exists: `onSuccess`
+  and `onFailure` are evaluated after the producer has finished, so a consumer with only those has
+  no way to stop early.
 
 A `workflow.call` without `onEmitted` ignores emissions and simply awaits the result, and
 `workflow.spawn` has no consumer at all. Emitted values are still recorded either way, readable
@@ -415,9 +468,26 @@ Source-format errors detected during this pass — as distinct from the bundle r
 | `UTOS-S006` | Two documents resolve to the same canonical identity with differing content |
 | `UTOS-S007` | An activity's `type` is missing, is not a known activity kind, or stops short of a mode the kind requires (e.g. bare `workflow` rather than `workflow.call`) |
 | `UTOS-S008` | A mapping contains duplicate keys |
+| `UTOS-S009` | A document is not well-formed, or does not match the workflow schema |
+| ~~`UTOS-S010`~~ | *Unallocated, and not to be reused.* See below |
+| `UTOS-S011` | `self` is used anywhere other than a promise branch's `workflow` |
 
 `UTOS-S004` covers every place a document is named — a `workflow.call` or `workflow.spawn`
 activity, a promise branch, and an `onEmitted` rule — because they all resolve the same way.
+
+**A `UTOS-S###` code names a defect in a document.** An implementation's own limitations are not
+rules and take no code: a feature it has not built, a reference kind it cannot yet resolve, a
+backend it lacks. The test is whether a conforming implementation that *had* built the thing could
+ever report it — if not, the document was never wrong, and a code would say it was. Such a problem
+is still worth reporting, and should be reported clearly; it just does not belong in a range that
+every implementation shares and every author may rely on.
+
+`UTOS-S010` is therefore **unallocated and should stay so**. The reference CLI briefly used it for
+"registry resolution is not implemented yet", which is precisely the case above, and versions
+carrying that code are in the wild. Allocating it to a real rule later would give one identifier
+two meanings.
+`UTOS-S011` is the exception to that symmetry: only a promise branch may write `self`. See
+[`self`](#self) for why the one place it is load-bearing is also the only place it is safe.
 
 ## Worked example
 
