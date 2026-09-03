@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.15]
 
+### Fixed
+- **The one 0.0.14 migration that fails silently is now written down** (`docs/workflow-source-format.md`). A consumer written before 0.0.13 closed its loop with `- transition: { name: process }` in `onEmitted`, meaning "handle this value there, then come back". 0.0.13 made that an unknown field and rejected the document; 0.0.14 makes it legal again with the opposite meaning — stop consuming, cancel the producer. So such a document validates cleanly against 0.0.14 and becomes a one-shot, handling the first value and finishing where it used to poll indefinitely. No rule code can catch it, because the old spelling and the new one are the same word on the same field, which is precisely why it needed saying in prose. 0.0.14 noted that authors arrive at the `self` mistake "by leaving old text alone"; the same is true here and is worse, because leaving the old text alone is not an error at all
+
 ## [0.0.14] - 2026-09-03
 
 ### Added
