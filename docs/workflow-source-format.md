@@ -469,10 +469,23 @@ Source-format errors detected during this pass — as distinct from the bundle r
 | `UTOS-S007` | An activity's `type` is missing, is not a known activity kind, or stops short of a mode the kind requires (e.g. bare `workflow` rather than `workflow.call`) |
 | `UTOS-S008` | A mapping contains duplicate keys |
 | `UTOS-S009` | A document is not well-formed, or does not match the workflow schema |
+| ~~`UTOS-S010`~~ | *Unallocated, and not to be reused.* See below |
 | `UTOS-S011` | `self` is used anywhere other than a promise branch's `workflow` |
 
 `UTOS-S004` covers every place a document is named — a `workflow.call` or `workflow.spawn`
 activity, a promise branch, and an `onEmitted` rule — because they all resolve the same way.
+
+**A `UTOS-S###` code names a defect in a document.** An implementation's own limitations are not
+rules and take no code: a feature it has not built, a reference kind it cannot yet resolve, a
+backend it lacks. The test is whether a conforming implementation that *had* built the thing could
+ever report it — if not, the document was never wrong, and a code would say it was. Such a problem
+is still worth reporting, and should be reported clearly; it just does not belong in a range that
+every implementation shares and every author may rely on.
+
+`UTOS-S010` is therefore **unallocated and should stay so**. The reference CLI briefly used it for
+"registry resolution is not implemented yet", which is precisely the case above, and versions
+carrying that code are in the wild. Allocating it to a real rule later would give one identifier
+two meanings.
 `UTOS-S011` is the exception to that symmetry: only a promise branch may write `self`. See
 [`self`](#self) for why the one place it is load-bearing is also the only place it is safe.
 
