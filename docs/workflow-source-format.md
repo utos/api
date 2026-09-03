@@ -359,6 +359,22 @@ holding an execution and a stream for as long as this workflow keeps going.
 Without those two a consumer has no way to stop consuming at all: its only exit is the producer
 terminating, which for an intentionally endless poller never happens.
 
+**Migrating a consumer written before 0.0.13 — this one is silent.** `onEmitted` has had three
+shapes. Before 0.0.13 a rule was an ordinary transition rule, the same thing `onSuccess` carries,
+and `- transition: { name: process }` meant *handle this value at `process`, then come back* — that
+was how the consuming loop was closed. 0.0.13 made a rule a flat dispatch naming a document, which
+turned that spelling into an unknown field and rejected the document. 0.0.14 makes it **legal
+again, meaning the opposite**: stop consuming, and cancel the producer.
+
+So a pre-0.0.13 consumer does not fail against 0.0.14. It validates cleanly and quietly becomes a
+one-shot — handling the first value, cancelling its producer and finishing, where it used to loop
+indefinitely. 0.0.13 caught this by refusing the document; 0.0.14 cannot, and no rule code can,
+because the old spelling and the new one are the same word applied to the same field. It is worth
+grepping for, since nothing else will tell you.
+
+The migration is not textual. The activity the old rule transitioned to has to move into a document
+of its own, because `handle` names a document and `self` is not legal there (`UTOS-S011`).
+
 Note the two `result`s above mean the same thing and are reached differently: the one in
 `onEmitted` fires on a value while the mailbox is still running, the one in `onSuccess` only once
 the mailbox has finished on its own. An action's meaning does not change with the list it appears
