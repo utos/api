@@ -127,6 +127,13 @@ will observe it again, and a gated producer would otherwise block forever on a c
 never advance. This is why cancellation is a prerequisite for this feature rather than an
 independent nicety.
 
+Where a rule ends the subscription, the cancellation happens **then**, not when the consuming
+execution eventually terminates. The two coincide for the other routes out — cancellation and
+failure end the consumer immediately — but a `transition` leaves the consumer running, possibly for
+a long time, and deferring to its terminal sweep would leave a producer parked on an
+acknowledgement that is never coming, holding an execution, an output stream and its context for
+the remainder. Ending the subscription and cancelling the producer are one event.
+
 The already-recorded entries are unaffected: cancelling the producer stops it emitting, it does
 not retract what it emitted.
 

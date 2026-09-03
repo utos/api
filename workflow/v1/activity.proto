@@ -399,13 +399,20 @@ message EmissionRule {
   // consuming at all — its only exit was the producer terminating, which for
   // the poller this feature exists to serve is never.
   oneof action {
-    // Run a document for this value, then come back for the next one. The loop
-    // body, and the only action that continues consuming.
+    // Run a document for this value, wait for it to finish, then come back for
+    // the next one. The loop body, and the only action that continues
+    // consuming.
+    //
+    // The producer stays parked for the duration, so values are handled one at
+    // a time and cannot pile up — the back-pressure described in
+    // docs/execution-output-stream.md is a consequence of this waiting, not a
+    // separate mechanism.
     HandlerDispatch handle = 2;
 
     // Stop consuming and continue at this activity, in the *consuming*
-    // workflow. The subscription ends and the producer is cancelled, since
-    // nothing will observe it again.
+    // workflow. The subscription ends and the producer is cancelled at that
+    // point — not when this workflow eventually terminates, which may be much
+    // later — since nothing will observe it again.
     //
     // Safe where a handler transitioning here would not be, and the difference
     // is which execution evaluates it. This rule is evaluated by the consumer,
@@ -417,6 +424,10 @@ message EmissionRule {
 
     // Stop consuming and end the consumer with this value as its result. The
     // subscription ends and the producer is cancelled, as above.
+    //
+    // The same action `on_success` carries, and it means the same thing there;
+    // what differs is when the list is evaluated. This one fires on a value
+    // while the producer is still running, that one only once it has finished.
     //
     // This is how "find one thing and return it" is written. Without it the
     // only way to stop early was to make a handler fail, which ends the run as

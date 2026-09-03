@@ -342,16 +342,21 @@ watch:
     - result: { done: true }        # reached only when the mailbox itself ends
 ```
 
-An `onEmitted` rule is an optional `condition` and exactly one action:
+An `onEmitted` rule is an optional `condition` and exactly one action. What each does to **this**
+workflow and to the **producer** it is consuming:
 
-| Action | |
-|---|---|
-| `handle` | Run a document for this value, then take the next. The loop body. |
-| `transition` | Stop consuming; continue at an activity in **this** workflow. |
-| `result` | Stop consuming; end this workflow with that value. |
+| Action | This workflow | The producer |
+|---|---|---|
+| `handle` | Runs the named document for this value and waits for it to finish, then takes the next value. | Stays parked until the handler finishes, so values arrive one at a time and never pile up. |
+| `transition` | Continues at the named activity, in this workflow. | Cancelled. |
+| `result` | Ends, with that value as its result. | Cancelled. |
 
-`transition` and `result` end the subscription and cancel the producer, since nothing will observe
-it again. Without them a consumer has no way to stop consuming — its only exit is the producer
+Only `handle` continues consuming. The other two leave the loop, and leaving it cancels the
+producer **at that point** rather than when this workflow eventually ends — nothing will observe it
+again, and a gated producer left running would sit on an acknowledgement that is never coming,
+holding an execution and a stream for as long as this workflow keeps going.
+
+Without those two a consumer has no way to stop consuming at all: its only exit is the producer
 terminating, which for an intentionally endless poller never happens.
 
 Note the two `result`s above mean the same thing and are reached differently: the one in
@@ -386,9 +391,12 @@ Three things follow from this being one ordered stream rather than a side channe
   own output stream and handed to the consumer's caller. That preserves what happened when the
   handler ran inline in the consumer, and needs no keyword. A terminal `result` in a handler has
   nowhere to go and is dropped — two ways to surface a value would be one too many.
-- **Terminating ends the subscription.** `end` or a `result` finishes the consuming execution,
-  which cancels the producer, because nothing will observe it again. That is how a consumer stops
-  early.
+- **A subscription outlives nothing.** It ends when a rule leaves the loop, and also when the
+  consuming execution terminates by any other route — an `end` or a `result` on some other path,
+  cancellation, failure. The producer is cancelled either way, because nothing will observe it
+  again. Only the first of those is reachable *while consuming*, which is why it exists: `onSuccess`
+  and `onFailure` are evaluated after the producer has finished, so a consumer with only those has
+  no way to stop early.
 
 A `workflow.call` without `onEmitted` ignores emissions and simply awaits the result, and
 `workflow.spawn` has no consumer at all. Emitted values are still recorded either way, readable
