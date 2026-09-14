@@ -135,7 +135,7 @@ spec:
       headers:
         accept: application/json
       onSuccess:
-        - condition: "{{ output.status == 'paid' }}"
+        - condition: "output.status === 'paid'"
           transition:
             name: notify
             input:
@@ -306,7 +306,7 @@ poll:
   method: GET
   url: "{{ env.MAIL_API }}/messages?since={{ input.cursor }}"
   onSuccess:
-    - condition: "{{ output.messages | array.size > 0 }}"
+    - condition: "output.messages.length > 0"
       emit:
         value:
           messages: "{{ output.messages }}"
@@ -326,11 +326,11 @@ watch:
   startActivity: poll
   onEmitted:
     # This is what we were waiting for: stop, and finish with it.
-    - condition: "{{ output.subject == 'approved' }}"
+    - condition: "output.subject === 'approved'"
       result: { approvedBy: "{{ output.from }}" }
 
     # Stop, but carry on with the rest of this workflow.
-    - condition: "{{ output.subject == 'cancelled' }}"
+    - condition: "output.subject === 'cancelled'"
       transition: { name: release-hold }
 
     # Anything else: hand it to a document and come back for the next value.
@@ -420,7 +420,11 @@ over `ExecutionService.WatchOutput`.
 
 ### Templates
 
-String values may embed `{{ }}` expressions. Five context objects are available:
+String values may embed `{{ }}` expressions, and `condition` fields are bare expressions. The
+language — JavaScript, restricted to the subset in
+[`template-expressions.md`](template-expressions.md) — its forms, its grammar and the guarantees
+every implementation makes while evaluating it are defined there; this section defines what the
+expressions can see. Five context objects are available:
 
 | Context | Meaning |
 |---|---|
@@ -450,7 +454,7 @@ transform:
 
 ```yaml
 onFailure:
-  - condition: "{{ response.status == 429 }}"
+  - condition: "response.status === 429"
     transition:
       name: backoff
       input:
