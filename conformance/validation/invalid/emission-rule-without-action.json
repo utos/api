@@ -19,7 +19,7 @@
               "call": {
                 "onEmitted": [
                   {
-                    "condition": "{{ output.urgent }}"
+                    "condition": "output.urgent"
                   }
                 ]
               }

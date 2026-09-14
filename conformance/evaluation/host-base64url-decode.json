@@ -1,0 +1,6 @@
+{
+  "form": "value",
+  "expression": "utos.base64UrlDecode(input.data)",
+  "scope": { "input": { "data": "SGkgdGhlcmUsIMO_" } },
+  "expect": { "value": "Hi there, ÿ" }
+}
