@@ -90,7 +90,8 @@ body: '{"emails": {{ input.emails }}}'
 ### Programs
 
 A program is a sequence of statements; its value is the **completion value** of the last one,
-which must be an expression statement (`UTOS-E063` if the program ends in a declaration). Every
+which must be an expression statement (`UTOS-E063` if the program is empty or ends in a
+declaration). Every
 program runs in **its own function scope**: a `const` in one expression is invisible to every
 other, and no expression can define anything another one sees. Within one activity, expressions
 are evaluated in document order.
@@ -155,7 +156,9 @@ prototypes, and no functions other than arrows.** Two properties follow, and are
 iteration can only happen over data that already exists, so work is proportional to input
 size; and no expression can build a prototype chain.
 
-Programs are parsed as **strict mode** scripts. A parse failure is `UTOS-E060`.
+Programs are parsed as **strict mode** scripts. A parse failure is `UTOS-E060` — which is also
+where a `return` outside an arrow body, `with`, and the other things strict mode refuses end up,
+before any grammar rule sees them. `UTOS-E011` is unallocated for that reason.
 
 | In the language | | Refused | Code |
 |---|---|---|---|
@@ -164,8 +167,8 @@ Programs are parsed as **strict mode** scripts. A parse failure is `UTOS-E060`.
 | `null`, booleans, numbers, strings, template literals, regex literals | | `function` declarations and expressions | `UTOS-E002` |
 | array and object literals, spread, computed keys | | `class` | `UTOS-E003` |
 | destructuring with defaults and rest, in declarations and parameters | | `try`, `throw`, `switch`, labels, `with`, `debugger` | `UTOS-E004` |
-| `.`, `[]`, `?.` member access | | `return` outside an arrow body | `UTOS-E011` |
-| calls; `new Set`, `new Map` | | array holes `[1, , 3]` | `UTOS-E012` |
+| `.`, `[]`, `?.` member access | | array holes `[1, , 3]` | `UTOS-E012` |
+| calls; `new Set`, `new Map` | | | |
 | `===` `!==` `==` `!=` `<` `<=` `>` `>=` `+` `-` `*` `/` `%` `**` `in` | | getters, setters, methods in object literals | `UTOS-E020` |
 | `&&` `\|\|` `??`, `? :` | | `__proto__` as an object-literal key | `UTOS-E021` |
 | `!`, unary `-`/`+`, `typeof` | | `this` | `UTOS-E030` |

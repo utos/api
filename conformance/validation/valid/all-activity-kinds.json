@@ -22,7 +22,7 @@
             },
             "onSuccess": [
               {
-                "condition": "{{ output.status == 'ready' }}",
+                "condition": "output.status === 'ready'",
                 "transition": {
                   "name": "fan-out",
                   "input": {
@@ -73,7 +73,7 @@
                     "collection": "{{ input.addons }}",
                     "alias": "item"
                   },
-                  "condition": "{{ item.enabled }}",
+                  "condition": "item.enabled",
                   "workflow": "acme/orchestrator:1.0.0",
                   "startActivity": "provision-addon",
                   "input": {
