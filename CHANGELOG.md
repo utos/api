@@ -5,7 +5,9 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.15]
+## [0.0.16]
+
+## [0.0.15] - 2026-09-14
 
 ### Changed
 - **Template expressions are JavaScript, and are specified** (`docs/template-expressions.md`). Until now the language of `{{ }}` and `condition` strings was whatever the reference daemon's engine happened to do — Scriban, unspecified, with a mutation surface (`env.SECRET = 'pwned'` succeeded) and a Turing-complete `while`. It is now ECMAScript restricted to an allow-listed subset — no loops, classes, prototypes, `function`, `var`, `this` or `try`, so that iteration can only happen over data that already exists and nothing can build a prototype chain — with a defined scope, one number type (the double the wire already carries; `5` and `5.0` are the same number, `10 / 4` is `2.5` on every path), a boolean rule for conditions, a plain-data rule for results, a three-function host library, and runtime guarantees every implementation must make: an allow-listed surface, deep-frozen inputs, limits that are invisible to script, native recursion reported as an error rather than ending the process. Static rules take `UTOS-E0##` and belong to the shared validator; evaluation rules take `UTOS-E1##` and are reported as `WorkflowError`s
