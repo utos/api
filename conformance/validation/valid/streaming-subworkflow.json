@@ -22,7 +22,7 @@
               "call": {
                 "onEmitted": [
                   {
-                    "condition": "{{ output.done }}",
+                    "condition": "output.done",
                     "transition": {
                       "name": "wrap-up"
                     }
@@ -109,7 +109,7 @@
             },
             "onSuccess": [
               {
-                "condition": "{{ output.messages | array.size > 0 }}",
+                "condition": "output.messages.length > 0",
                 "emit": {
                   "value": {
                     "messages": "{{ output.messages }}"

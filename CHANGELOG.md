@@ -5,7 +5,18 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.15]
+## [0.0.16]
+
+## [0.0.15] - 2026-09-14
+
+### Changed
+- **Template expressions are JavaScript, and are specified** (`docs/template-expressions.md`). Until now the language of `{{ }}` and `condition` strings was whatever the reference daemon's engine happened to do — Scriban, unspecified, with a mutation surface (`env.SECRET = 'pwned'` succeeded) and a Turing-complete `while`. It is now ECMAScript restricted to an allow-listed subset — no loops, classes, prototypes, `function`, `var`, `this` or `try`, so that iteration can only happen over data that already exists and nothing can build a prototype chain — with a defined scope, one number type (the double the wire already carries; `5` and `5.0` are the same number, `10 / 4` is `2.5` on every path), a boolean rule for conditions, a plain-data rule for results, a three-function host library, and runtime guarantees every implementation must make: an allow-listed surface, deep-frozen inputs, limits that are invisible to script, native recursion reported as an error rather than ending the process. Static rules take `UTOS-E0##` and belong to the shared validator; evaluation rules take `UTOS-E1##` and are reported as `WorkflowError`s
+- **A `condition` is a bare expression** — `condition: "output.status === 'paid'"`, not `"{{ … }}"`; `{{` inside a condition is `UTOS-E061`. It must evaluate to exactly `true` or `false` (`UTOS-E101`): JavaScript's truthy `0`, `""` and `[]` are errors, not branches taken
+- **Every Scriban document breaks, loudly.** Scriban conditions are `{{ }}`-wrapped and Scriban's call syntax (`object.has_key x 'k'`, `for h in …`) is a JavaScript syntax error, so a stale document fails to load rather than running differently; the migration table in the new document lists the rewrites. Four behaviours change without an error and are listed there: a missing member is `undefined` rather than fatal, conditions must be boolean, whole-valued doubles divide exactly, division by zero is an error rather than `Infinity`
+- The examples in `docs/workflow-source-format.md` are rewritten in the new language; its § Templates keeps the definition of what expressions can see — the five contexts, that `output`, `error` and `response` are always defined with `null` where they do not apply — and defers the language itself
+
+### Fixed
+- **The one 0.0.14 migration that fails silently is now written down** (`docs/workflow-source-format.md`). A consumer written before 0.0.13 closed its loop with `- transition: { name: process }` in `onEmitted`, meaning "handle this value there, then come back". 0.0.13 made that an unknown field and rejected the document; 0.0.14 makes it legal again with the opposite meaning — stop consuming, cancel the producer. So such a document validates cleanly against 0.0.14 and becomes a one-shot, handling the first value and finishing where it used to poll indefinitely. No rule code can catch it, because the old spelling and the new one are the same word on the same field, which is precisely why it needed saying in prose. 0.0.14 noted that authors arrive at the `self` mistake "by leaving old text alone"; the same is true here and is worse, because leaving the old text alone is not an error at all
 
 ## [0.0.14] - 2026-09-03
 

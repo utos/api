@@ -17,7 +17,7 @@
             },
             "onSuccess": [
               {
-                "condition": "{{ output.ok }}"
+                "condition": "output.ok"
               }
             ]
           }

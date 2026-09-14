@@ -1,0 +1,95 @@
+{
+  "entryPoint": "acme/expressions:1.0.0",
+  "workflows": {
+    "acme/expressions:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "expressions",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "Every form an expression can take, and the programs the language must accept."
+      },
+      "spec": {
+        "activities": {
+          "fetch": {
+            "http": {
+              "method": "GET",
+              "url": "{{ env.API ?? 'https://api.example.com' }}/orders/{{ input.id }}?since={{ input.cursor ?? '' }}",
+              "headers": {
+                "authorization": "Bearer {{ input.token }}",
+                "x-literal": "no template here",
+                "x-braces": "{{ '}}' }} and {{ ({ a: { b: 1 } }).a.b }}"
+              },
+              "body": "{\"emails\": {{ input.emails }}, \"count\": {{ input.emails.length }}}"
+            },
+            "onSuccess": [
+              {
+                "condition": "output.status === 'ready' && output.items?.length > 0",
+                "transition": {
+                  "name": "fan-out",
+                  "input": {
+                    "ids": "{{ [...new Set(output.items.flatMap(i => i.children ?? []).map(c => c.id))] }}",
+                    "first": "{{ output.items.findLast(i => i.kind === 'primary')?.name ?? '' }}",
+                    "summary": "{{\n  const items = output.items.filter(i => i.enabled);\n  const { total = 0 } = output;\n  items.length === 0 ? 'none' : `${items.length} of ${total}`\n}}",
+                    "reduced": "{{ output.items.reduce((acc, i) => { const n = i.count ?? 0; return acc + n; }, 0) }}",
+                    "sorted": "{{ output.items.toSorted((a, b) => a.rank - b.rank).map(({ id }) => id) }}",
+                    "counter": "{{ let n = 0; output.items.forEach(() => { n += 1; }); n }}",
+                    "literal": "plain text",
+                    "nested": { "deep": "{{ input.id }}", "num": 5.0, "list": ["{{ input.id }}", 1, true, null] }
+                  }
+                }
+              },
+              {
+                "condition": "output.missing?.deep === 'x' || 'name' in output || typeof output.count === 'number'",
+                "result": { "decoded": "{{ utos.base64UrlDecode(output.data) }}", "big": "{{ Math.max(...output.values) }}" }
+              },
+              {
+                "condition": "true",
+                "emit": {
+                  "value": { "message": "{{ output.message }}" },
+                  "transition": { "name": "end" }
+                }
+              }
+            ],
+            "onFailure": [
+              {
+                "condition": "response.status === 429 || response.status >= 500",
+                "transition": { "name": "end", "input": { "retryAfter": "{{ response.headers['Retry-After'] }}" } }
+              }
+            ]
+          },
+          "fan-out": {
+            "promise": {
+              "all": {},
+              "branches": [
+                {
+                  "name": "item-{{ item.id }}",
+                  "forEach": { "collection": "{{ input.ids.map(id => ({ id })) }}", "alias": "item" },
+                  "condition": "item.id !== 'skip'",
+                  "workflow": "acme/expressions:1.0.0",
+                  "startActivity": "fetch",
+                  "input": { "id": "{{ item.id }}" }
+                }
+              ]
+            },
+            "onSuccess": [ { "result": { "quotes": "{{ output }}" } } ]
+          },
+          "watch": {
+            "workflow": {
+              "workflow": "acme/expressions:1.0.0",
+              "startActivity": "fetch",
+              "input": { "id": "{{ input.id }}" },
+              "call": {
+                "onEmitted": [
+                  { "condition": "output.message === 'done'", "transition": { "name": "end" } },
+                  { "handle": { "workflow": "acme/expressions:1.0.0", "startActivity": "fetch", "input": { "id": "{{ output.message }}" } } }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

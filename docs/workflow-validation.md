@@ -13,7 +13,11 @@ dependency aliases, missing files, cycles — are listed in
 they are detected while producing a bundle rather than by inspecting one.
 
 Rules here are **structural and referential**. They do not evaluate template expressions, reach
-the network, or reason about what a workflow will do at run time.
+the network, or reason about what a workflow will do at run time. The one thing they do with an
+expression is *parse* it: the static expression rules `UTOS-E0##` — the grammar, the template
+forms, a condition that carries delimiters — are defined in
+[`template-expressions.md`](template-expressions.md) and are part of this same rule set, reported
+the same way and covered by the same fixtures.
 
 ## Reporting
 

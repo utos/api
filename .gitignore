@@ -1,2 +1,5 @@
 # Buf cache
 .buf
+
+# Agent-local settings. Workspace guidance, not repository content.
+.claude/
