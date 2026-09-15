@@ -10,6 +10,7 @@
           "onSuccess": [
             { "condition": "output.done", "result": {} },
             { "condition": "output.later", "result": {} },
+            { "condition": "output.flow", "result": {} },
             { "result": {} }
           ]
         }
