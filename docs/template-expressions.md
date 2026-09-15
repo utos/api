@@ -325,10 +325,17 @@ components, `searchParams` with `get`/`getAll`/`has`/`set`/`append`/`delete`/`to
 leaves an expression.
 
 The executor captures the instant and the seed once per activity evaluation and supplies them
-to the engine; how it obtains replay-safe values is its own concern (the reference daemon uses
-the orchestration runtime's deterministic clock and id generator). A conformance case supplies
-them as `clock` and `seed`. Calling `Math.random()` or `crypto.randomUUID()` counts across all
-expressions of the activity in document order, so two expressions never draw the same value.
+to the engine. **The seed MUST be 128 bits drawn from a cryptographically secure random source,
+fresh for every activity evaluation, and recorded so that a retry or replay of that evaluation
+reuses it.** It must never be derived from anything an observer can know or guess — an
+execution id, a timestamp, a counter, or a replay-safe id generator such as Durable Task's
+`NewGuid()`, which hashes exactly those. With such a seed the derivations above are a hash-based
+DRBG: earlier outputs reveal neither the seed nor later outputs, and one activity's values say
+nothing about another's. (Node's own `Math.random()` is xorshift128+, whose state is recoverable
+from a few outputs; this is deliberately not that.) What is *not* provided, by design, is a new
+draw on retry: an evaluation's values are decided once. A conformance case supplies the instant
+and seed as `clock` and `seed`. Calling `Math.random()` or `crypto.randomUUID()` counts across
+all expressions of the activity in document order, so two expressions never draw the same value.
 
 Recorded for later, on a named need, and not part of this version: `TextDecoder` with a fixed
 label set (non-UTF-8 mail bodies), `crypto.verify` with JWK keys (signed webhooks and ID tokens,
@@ -372,8 +379,9 @@ is produced by deleting everything not listed and freezing what remains, scope v
 frozen host-side as they are copied in, and one engine serves all the expressions of one
 activity. `Buffer`, `crypto`, `URL` and `URLSearchParams` are host objects installed on the
 engine; `Date.now`, the zero-argument `Date` constructor, `Math.random` and `crypto.randomUUID`
-are overridden with the captured instant and seed, which the daemon takes from the orchestration
-runtime's replay-safe clock and id generator. The grammar is checked with Acornima, the same
+are overridden with the captured instant and seed. The instant comes from the orchestration
+runtime's replay-safe clock; the seed is generated with the platform CSPRNG inside the activity
+that evaluates the expressions, whose result the runtime persists, so a replay never re-draws it. The grammar is checked with Acornima, the same
 parser the engine uses, on the tree the engine then runs.
 
 ## Migrating from Scriban
