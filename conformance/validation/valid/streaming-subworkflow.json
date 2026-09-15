@@ -48,8 +48,9 @@
             ],
             "onFailure": [
               {
-                "transition": {
-                  "name": "error"
+                "error": {
+                  "code": "WATCH_FAILED",
+                  "message": "{{ error.message }}"
                 }
               }
             ]

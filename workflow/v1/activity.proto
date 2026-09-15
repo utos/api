@@ -4,6 +4,7 @@ package utos.workflow.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
+import "workflow/v1/common.proto";
 
 option csharp_namespace = "Utos.Workflows.V1";
 
@@ -34,24 +35,37 @@ message WorkflowActivity {
 
 // Defines a conditional transition rule with an action (transition, result, or emit)
 message TransitionRule {
-  // Template condition expression (e.g., "{{ output.count > 10 }}")
-  // If empty/omitted, rule always executes (default/fallback rule)
+  // A bare expression that must evaluate to exactly true or false — e.g.
+  // `output.count > 10` — as docs/template-expressions.md defines. Not `{{ }}`-
+  // wrapped (UTOS-E061). If empty/omitted, the rule always matches (a fallback).
   // Available context: `input` (data the source activity received),
   // `output` (raw output from the source activity's execution),
-  // `env` (the run's ambient environment map, available to every activity)
+  // `env` (the run's ambient environment map, available to every activity),
+  // `response` and `error` — always defined, null where they do not apply.
   optional string condition = 1;
 
-  // Action to take when this rule matches
+  // Action to take when this rule matches. Exactly one (UTOS-T001).
   oneof action {
-    // Transition to another activity
+    // Transition to another activity in this workflow. Since 0.0.16 a target is
+    // always an activity: the former `end` and `error` keywords are `result`
+    // and `error` below, so a name is never ambiguous.
     TransitionTarget transition = 2;
 
-    // Return data and end this execution path. Appends the terminal entry to
-    // this execution's output stream — see docs/execution-output-stream.md.
+    // End this execution path, returning this value. Appends the terminal entry
+    // to this execution's output stream — see docs/execution-output-stream.md.
+    // An EMPTY struct ends the path with no value (GetExecution.result is unset);
+    // the source format spells both as `return`.
     google.protobuf.Struct result = 3;
 
     // Append a value to this execution's output stream and keep going.
     EmitAction emit = 4;
+
+    // End this execution path as a failure, with this error. The run reports
+    // exactly what the author wrote: `code` is a literal identifier (required,
+    // UTOS-T005); `message` is a text template and `details` a struct template,
+    // rendered in the same context as the condition. Replaces the former
+    // `transition: { name: error }`, which could carry no reason.
+    WorkflowError error = 5;
   }
 }
 
@@ -80,14 +94,13 @@ message EmitAction {
 
 // Defines the target of a transition
 message TransitionTarget {
-  // Activity name, or a reserved terminal keyword: "end" (end this path
-  // successfully) or "error" (end this path with an error). The keywords are
-  // reserved — an activity in WorkflowSpec.activities may not be named "end" or
-  // "error" — so a target name is never ambiguous.
+  // The name of an activity in the same workflow (UTOS-T003). Nothing else:
+  // ending a path is a `result` action and failing it is an `error` action, so
+  // there are no keywords and no name is reserved.
   // The name may reference an already-visited activity — a back-edge — which
   // forms a loop (e.g. poll-inbox -> wait -> poll-inbox). A loop with no rule
-  // transitioning to "end" (or a `result` action) runs until the execution is
-  // cancelled, expressing an intentionally infinite loop such as a poller.
+  // carrying a `result` runs until the execution is cancelled, expressing an
+  // intentionally infinite loop such as a poller.
   string name = 1;
 
   // Transform that produces the target activity's `input` context.
@@ -117,8 +130,9 @@ message TransitionTarget {
 //
 // An http activity surfaces its result twice, on different axes: `output` is
 // the parsed JSON body, in common with every other activity kind, while
-// `response` carries the transport facts — status, headers, bodyText — that
-// have no analogue on the other kinds. `response` is available on the failure
+// `response` carries the transport facts — status, headers (names lowercased),
+// body (the raw bytes, as a Buffer) and bodyText — that have no analogue on the
+// other kinds. `response` is available on the failure
 // path as well, which is what lets an on_failure rule tell a 429 from a 401
 // without an error-code taxonomy. A non-2xx is a failure.
 message HttpActivityConfig {
@@ -391,13 +405,13 @@ message EmissionRule {
 
   // What to do with the value. Exactly one, and a rule with none is rejected
   // (UTOS-C504); two is unrepresentable, which is why this is a oneof rather
-  // than three optional fields checked after the fact.
+  // than optional fields checked after the fact.
   //
-  // The three answers a consumer has to "a value arrived", and the reason this
-  // is not simply a dispatch: `handle` continues the loop, while `transition`
-  // and `result` leave it. Without the latter two a consumer had no way to stop
-  // consuming at all — its only exit was the producer terminating, which for
-  // the poller this feature exists to serve is never.
+  // The answers a consumer has to "a value arrived", and the reason this is not
+  // simply a dispatch: `handle` continues the loop, while `transition`, `result`
+  // and `error` leave it. Without the leaving actions a consumer had no way to
+  // stop consuming at all — its only exit was the producer terminating, which
+  // for the poller this feature exists to serve is never.
   oneof action {
     // Run a document for this value, wait for it to finish, then come back for
     // the next one. The loop body, and the only action that continues
@@ -432,8 +446,13 @@ message EmissionRule {
     // This is how "find one thing and return it" is written. Without it the
     // only way to stop early was to make a handler fail, which ends the run as
     // an error and loses the distinction between finishing early on purpose and
-    // breaking.
+    // breaking. An empty struct stops consuming and ends with no value.
     google.protobuf.Struct result = 4;
+
+    // Stop consuming and end the consumer as a failure, with this error — the
+    // same action `on_success` carries, with the same shape and rules
+    // (UTOS-T005). The subscription ends and the producer is cancelled.
+    WorkflowError error = 5;
   }
 }
 

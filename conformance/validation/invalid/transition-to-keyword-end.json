@@ -9,7 +9,7 @@
         "activities": {
           "say-hello": {
             "http": { "method": "GET", "url": "https://api.example.com/hello" },
-            "onSuccess": [ { "condition": "let x = 1; x |= 2; x === 3", "transition": { "name": "end" } } ]
+            "onSuccess": [ { "transition": { "name": "end" } } ]
           }
         }
       }

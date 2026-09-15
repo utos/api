@@ -10,14 +10,17 @@ option csharp_namespace = "Utos.Workflows.V1";
 // Common Types
 // ============================================================================
 
-// Standard error response
+// Why an execution failed. Reported on a failed execution, and — the same
+// shape — authored as a rule's `error` action, so a workflow that decides to
+// fail says exactly what the run will report.
 message WorkflowError {
-  // Error code
+  // A stable identifier for the failure class, e.g. "MISSING_CUSTOMER". As an
+  // authored action it is a literal (never a template) and required (UTOS-T005).
   string code = 1;
 
-  // Error message
+  // Human-readable explanation. As an authored action, a text template.
   string message = 2;
 
-  // Additional structured error details
+  // Additional structured details. As an authored action, a struct template.
   optional google.protobuf.Struct details = 3;
 }

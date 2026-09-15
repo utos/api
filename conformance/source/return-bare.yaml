@@ -1,0 +1,17 @@
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: greet
+  version: 1.0.0
+spec:
+  activities:
+    say-hello:
+      type: http
+      method: GET
+      url: https://api.example.com/hello
+      onSuccess:
+        - condition: "output.done"
+          return
+        - condition: "output.later"
+          return:
+        - return: ~

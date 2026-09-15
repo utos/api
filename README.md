@@ -30,8 +30,9 @@ normative — every implementation is expected to conform.
 | [Canonical bundle digest](docs/canonical-bundle-digest.md) | The deterministic byte form behind `WorkflowReference.digest` |
 | [Execution output streams](docs/execution-output-stream.md) | What `emit`, `onEmitted` and `WatchOutput` guarantee: ordering, durability, back-pressure |
 
-Cross-implementation fixtures live in [`conformance/`](conformance/) and are run as tests by each
-SDK, so conformance is demonstrable rather than assumed.
+Cross-implementation fixtures live in [`conformance/`](conformance/) — bundle validation,
+expression evaluation, and the source-format mapping — and are run as tests by each SDK, so
+conformance is demonstrable rather than assumed.
 
 ## SDKs
 
