@@ -1,0 +1,6 @@
+{
+  "form": "condition",
+  "expression": "crypto.timingSafeEqual(crypto.createHmac('sha256', env.SECRET).update(input.rawBody).digest('hex'), input.signature)",
+  "scope": { "env": { "SECRET": "key" }, "input": { "rawBody": "The quick brown fox jumps over the lazy dog", "signature": "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8" } },
+  "expect": { "value": true }
+}

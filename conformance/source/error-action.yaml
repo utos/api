@@ -1,0 +1,19 @@
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: greet
+  version: 1.0.0
+spec:
+  activities:
+    say-hello:
+      type: http
+      method: GET
+      url: https://api.example.com/hello
+      onFailure:
+        - condition: "response.status === 404"
+          error:
+            code: NOT_FOUND
+            message: "no greeting for {{ input.who }}"
+            details:
+              status: "{{ response.status }}"
+        - error: { code: HELLO_FAILED }

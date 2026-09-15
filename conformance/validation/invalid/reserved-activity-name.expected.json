@@ -1,5 +1,0 @@
-{
-  "issues": [
-    { "code": "UTOS-A003", "path": "workflows[\"greet:1.0.0\"].spec.activities[\"end\"]" }
-  ]
-}

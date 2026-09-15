@@ -1,0 +1,58 @@
+{
+  "entryPoint": "acme/actions:1.0.0",
+  "workflows": {
+    "acme/actions:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "actions",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "Every way a path can end: a result with a value, a result with none, an error with a reason."
+      },
+      "spec": {
+        "activities": {
+          "fetch": {
+            "http": { "method": "GET", "url": "https://api.example.com/orders/1" },
+            "onSuccess": [
+              { "condition": "output.status === 'shipped'", "result": { "shipped": true, "at": "{{ new Date().toISOString() }}" } },
+              { "condition": "output.status === 'cancelled'", "result": {} },
+              { "transition": { "name": "watch" } }
+            ],
+            "onFailure": [
+              {
+                "condition": "response.status === 404",
+                "error": { "code": "ORDER_NOT_FOUND", "message": "order {{ input.orderId }} does not exist" }
+              },
+              {
+                "error": {
+                  "code": "ORDER_FETCH_FAILED",
+                  "message": "{{ error.message }}",
+                  "details": { "status": "{{ response.status }}", "body": "{{ response.body.toString('base64') }}" }
+                }
+              }
+            ]
+          },
+          "watch": {
+            "workflow": {
+              "workflow": "acme/actions:1.0.0",
+              "startActivity": "fetch",
+              "call": {
+                "onEmitted": [
+                  { "condition": "output.kind === 'done'", "result": {} },
+                  { "condition": "output.kind === 'bad'", "error": { "code": "BAD_VALUE" } },
+                  { "handle": { "workflow": "acme/actions:1.0.0", "startActivity": "fetch" } }
+                ]
+              }
+            },
+            "onSuccess": [ { "result": { "watched": true } } ]
+          },
+          "end": {
+            "timer": { "duration": "1s" },
+            "onSuccess": [ { "result": {} } ]
+          }
+        }
+      }
+    }
+  }
+}

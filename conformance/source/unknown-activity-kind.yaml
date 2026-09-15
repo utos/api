@@ -1,0 +1,10 @@
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: greet
+  version: 1.0.0
+spec:
+  activities:
+    say-hello:
+      type: grpc
+      url: https://api.example.com/hello

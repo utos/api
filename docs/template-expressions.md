@@ -12,9 +12,10 @@ accepts cannot be one another rejects or computes differently.
 Expressions are **JavaScript**, by reference to ECMAScript, restricted to the subset in
 [§ Grammar](#grammar) and evaluated under the guarantees in [§ Runtime](#runtime-guarantees).
 This document defines only what Utos adds to ECMAScript: which strings are expressions, the
-scope they see, the subset, the values that cross in and out, the host library, and the
-guarantees. Everything else — operator semantics, coercion, the behaviour of `map` — is
-ECMAScript's, and is not restated here.
+scope they see, the subset, the values that cross in and out, the Node.js globals that are
+available and how the non-deterministic ones are made deterministic, and the guarantees.
+Everything else — operator semantics, coercion, the behaviour of `map` or of `Buffer` — is
+ECMAScript's or Node's, and is not restated here.
 
 The rules split into two kinds, reported differently:
 
@@ -101,10 +102,15 @@ are evaluated in document order.
 | Name | In scope for |
 |---|---|
 | `input`, `env` | every expression |
-| `output`, `error`, `response` | every transition rule and everything it renders — `condition`, `transition.input`, `emit`, `result` — on **both** paths. **Always defined**, with `null` where they do not apply: `output` is `null` after a failure, `error` is `null` after a success, `response` and every key within `error` and `response` are `null` when there was no request or no response. A condition may name `response.status` on an activity that made no request and evaluate `false` rather than fail — the failure that would otherwise raise is raised while a failure is already being handled |
+| `output`, `error`, `response` | every transition rule and everything it renders — `condition`, `transition.input`, `emit`, `result`, `error` — on **both** paths. **Always defined**, with `null` where they do not apply: `output` is `null` after a failure, `error` is `null` after a success, `response` and every key within `error` and `response` are `null` when there was no request or no response. A condition may name `response.status` on an activity that made no request and evaluate `false` rather than fail — the failure that would otherwise raise is raised while a failure is already being handled |
 | a `PromiseForEach.alias` | the branch it is declared on: `name`, `condition`, `input` |
 | dependency aliases | `PromiseBranch` and `EmissionRule` fields, as `workflow-source-format.md` defines them |
-| `utos` | every expression — the host library, § Host library |
+
+`response` is `{ status, headers, body, bodyText }`: `headers` with **lowercased names**
+(`response.headers['retry-after']` — HTTP header names are case-insensitive and a JavaScript
+property lookup is not, so one spelling is chosen, Node's), `body` the raw response bytes as a
+`Buffer` (§ Node.js globals), `bodyText` the body as text. Every key is present and `null` when
+there was no response.
 
 The meaning of each context — what `input` is on the start activity, why `error` is separate
 from `output`, that `error` and `response` describe the activity a transition is *leaving* and
@@ -142,9 +148,12 @@ behave as ECMAScript defines. Consequences an implementation must honour:
 
 A value leaving an expression must be **plain data**: `null`, a boolean, a number, a string, or
 an array or plain object of those, finitely nested and acyclic. Anything else is `UTOS-E103`:
-a function, an object with an accessor property, a `Map`, a `Set`, a cycle, or nesting deeper
-than the implementation's limit. `undefined` as a **whole result** means the field is
-**omitted**; `null` is carried as `null`. Symbol-keyed properties are dropped.
+a function, an object with an accessor property, a `Map`, a `Set`, a `Buffer`, a `Date`, a
+`URL`, a cycle, or nesting deeper than the implementation's limit. Bytes leave as text the author
+chose — `buffer.toString('base64')`, `.toString('hex')`, `.toString()` — and a date as
+`.toISOString()` or `.getTime()`; explicit beats a silent conversion. `undefined` as a **whole
+result** means the field is **omitted**; `null` is carried as `null`. Symbol-keyed properties are
+dropped.
 
 ## Grammar
 
@@ -168,19 +177,22 @@ before any grammar rule sees them. `UTOS-E011` is unallocated for that reason.
 | array and object literals, spread, computed keys | | `class` | `UTOS-E003` |
 | destructuring with defaults and rest, in declarations and parameters | | `try`, `throw`, `switch`, labels, `with`, `debugger` | `UTOS-E004` |
 | `.`, `[]`, `?.` member access | | array holes `[1, , 3]` | `UTOS-E012` |
-| calls; `new Set`, `new Map` | | | |
+| calls; `new Set`, `new Map`, `new Date`, `new URL`, `new URLSearchParams` | | | |
 | `===` `!==` `==` `!=` `<` `<=` `>` `>=` `+` `-` `*` `/` `%` `**` `in` | | getters, setters, methods in object literals | `UTOS-E020` |
-| `&&` `\|\|` `??`, `? :` | | `__proto__` as an object-literal key | `UTOS-E021` |
-| `!`, unary `-`/`+`, `typeof` | | `this` | `UTOS-E030` |
-| `=` `+=` `-=` `*=` `/=`, `++`, `--` | | `async`, `await`, generators, `yield` | `UTOS-E031` |
-| | | `import`, `import.meta` | `UTOS-E032` |
+| `&` `\|` `^` `<<` `>>` `>>>` | | `__proto__` as an object-literal key | `UTOS-E021` |
+| `&&` `\|\|` `??`, `? :` | | `this` | `UTOS-E030` |
+| `!`, `~`, unary `-`/`+`, `typeof` | | `async`, `await`, generators, `yield` | `UTOS-E031` |
+| every assignment operator (`=`, `+=`, `\|=`, `??=`…), `++`, `--` | | `import`, `import.meta` | `UTOS-E032` |
 | | | comma expressions | `UTOS-E035` |
-| | | `new` of anything but `Set`/`Map` | `UTOS-E040` |
+| | | `new` of anything but the five above | `UTOS-E040` |
 | | | calling `Array`, `Object`, `Function`, `eval` | `UTOS-E041` |
-| | | `delete`, `void`, `~` | `UTOS-E050` |
-| | | `instanceof`, bitwise and shift operators | `UTOS-E051` |
-| | | other compound assignments (`\|=`, `**=`, `??=`…) | `UTOS-E052` |
+| | | `delete`, `void` | `UTOS-E050` |
+| | | `instanceof` | `UTOS-E051` |
 | | | any other node type | `UTOS-E099` |
+
+`UTOS-E052` (compound assignment operators) is **retired in 0.0.16 and not reused**: every
+assignment operator is in the language. Bitwise and shift operators were admitted at the same
+time — pure integer arithmetic, and what `Buffer` work is written with.
 
 Recursion through a `const` helper (`const f = n => … f(n - 1) …`) is in the language and is
 bounded at evaluation time (`UTOS-E113`). `==`/`!=` are in the language; implementations may
@@ -196,16 +208,19 @@ a conformance fixture; none may be assumed from a validating client.
 
 1. **Nothing but the subset runs.** The grammar is checked on the tree the engine will run,
    before it runs it — by the executor, not only by a validating client.
-2. **The surface is an allow-list.** Only the globals, prototype members, statics and host
-   functions in [§ Surface](#surface) exist. There is no `Date`, no `Math.random`, no `Proxy`,
-   `Reflect`, `Promise`, `WeakRef`, no `RegExp` constructor (regex literals remain), no
+2. **The surface is an allow-list.** Only the globals, prototype members, statics and Node.js
+   globals in [§ Surface](#surface) and [§ Node.js globals](#nodejs-globals) exist. There is no
+   `Proxy`, `Reflect`, `Promise`, `WeakRef`, no `RegExp` constructor (regex literals remain), no
    `Function.prototype.constructor`, no `Object.create` or `setPrototypeOf`, no `Array.from`,
    no `repeat`/`padStart`/`padEnd`, and no route from data to code: `eval` and the `Function`
    constructor are absent and string-to-code compilation is disabled. Everything that remains
    is frozen; the global object is unreachable.
 3. **Scope values are deep-frozen copies**, never live host objects (§ Scope).
-4. **Evaluation is deterministic**: no time, no randomness, invariant culture, one function
-   scope per program, document order within an activity.
+4. **Evaluation is deterministic given its inputs.** Invariant culture, UTC, one function scope
+   per program, document order within an activity — and the four sources of non-determinism
+   Node has are replaced by values the executor captures **once per activity evaluation**: an
+   instant and a seed (§ Node.js globals). Every expression of the activity sees the same time
+   and the same sequence of ids, and so does a retry or a replay.
 5. **Limits exist, are captured when the execution is scheduled, and are invisible to
    script.** Each fires as its own code:
 
@@ -237,7 +252,8 @@ Everything that exists in scope besides the names in § Scope. Anything not list
 
 **Globals:** `undefined`, `NaN`, `Infinity`, `Array`, `String`, `Number`, `Boolean`, `Object`,
 `Math`, `JSON`, `Set`, `Map`, `Symbol`, `parseInt`, `parseFloat`, `isNaN`, `isFinite`,
-`encodeURIComponent`, `decodeURIComponent`, `encodeURI`, `decodeURI`, `utos`.
+`encodeURIComponent`, `decodeURIComponent`, `encodeURI`, `decodeURI`, and the Node.js globals
+`Buffer`, `crypto`, `Date`, `URL`, `URLSearchParams` (§ Node.js globals).
 
 **`Array.prototype`:** `map` `filter` `find` `findIndex` `findLast` `findLastIndex` `some`
 `every` `flatMap` `flat` `reduce` `reduceRight` `includes` `indexOf` `lastIndexOf` `slice`
@@ -260,23 +276,71 @@ standard prototypes.
 `isFinite` `isNaN` `isSafeInteger` `parseFloat` `parseInt` `MAX_SAFE_INTEGER`
 `MIN_SAFE_INTEGER` `EPSILON` `MAX_VALUE` `MIN_VALUE` `POSITIVE_INFINITY` `NEGATIVE_INFINITY`
 `NaN`; `String.fromCharCode` `fromCodePoint`; `JSON.parse` `stringify`; `Math` — every
-function and constant except `random`.
+function and constant, `random` as § Node.js globals defines it.
 
-## Host library
+## Node.js globals
 
-`utos.*` is spec surface: each function is a conformance fixture, so the list stays short.
+Rather than a library of its own, the language exposes a **subset of Node.js's globals** under
+their Node names and semantics, so that what an author already knows is what works. The subset is
+chosen by three criteria: it cannot be written in the language itself (bytes, hashing), or its
+cost is proportional to data the author does not control (a response body, where a script version
+would spend the statement budget per byte), and it does no I/O. Where Node's behaviour is
+non-deterministic, ours is deterministic per activity, as follows.
 
-| Function | Behaviour |
-|---|---|
-| `utos.base64Decode(s)` | Standard alphabet, padding required; UTF-8 text |
-| `utos.base64UrlDecode(s)` | URL-safe alphabet (`-`/`_`), padding optional — what Gmail, JWTs and OAuth use |
-| `utos.base64Encode(s)` | UTF-8 text to the standard alphabet with padding |
+**`Buffer`** — the bytes primitive, and the only one: there is no `ArrayBuffer`, `Uint8Array`,
+`TextEncoder` or `atob`/`btoa`. A minimal `Buffer`, not a `Uint8Array` subclass:
+`Buffer.from(string[, encoding])`, `Buffer.from(buffer)`, `Buffer.concat(list)`,
+`Buffer.byteLength(string[, encoding])`, `Buffer.isBuffer`; on an instance `toString([encoding[,
+start[, end]]])`, `length`, `slice`/`subarray(start[, end])`, `equals`, `compare`, `indexOf`,
+`includes`, `at(i)` and `buffer[i]`, `readUInt8`, `readUInt16LE/BE`, `readUInt32LE/BE`,
+`readInt8/16/32` likewise, `toJSON` (Node's `{ type: 'Buffer', data: [...] }`). Encodings:
+`utf8`/`utf-8`, `base64`, `base64url` (the unpadded URL-safe alphabet Gmail, JWTs and OAuth use),
+`hex`, `latin1`/`binary`, `ascii`, `utf16le`. `response.body` is a `Buffer`; a `Buffer` cannot
+leave an expression except as text (§ Results).
 
-Each takes a string and returns a string; any other argument is a `TypeError` (`UTOS-E120`).
+**`crypto`** — `createHash(algorithm)` and `createHmac(algorithm, key)` with `update(data)` and
+`digest(encoding)`; one-shot `hash(algorithm, data[, encoding])`; `randomUUID()`;
+`timingSafeEqual(a, b)`. Algorithms: `sha256`, `sha512`, `sha1`, `md5`. Digest encodings:
+`hex`, `base64`, `base64url`; `data` and `key` are strings or `Buffer`s. These are the
+`node:crypto` module's synchronous functions placed on the global `crypto` (Node's own global
+`crypto` is WebCrypto, whose API is asynchronous); there are no modules, so this is where they
+live. Deliberately absent: `pbkdf2`, `scrypt`, ciphers, `sign`/`verify`, `subtle`.
+
+**`Date`** — the full ECMAScript `Date` (`new Date(value)`, `Date.parse`, `Date.UTC`, every
+getter, setter and formatter, `toISOString`, `getTime`), in UTC, with one rule: **`Date.now()`
+and `new Date()` return the instant the executor captured for this activity evaluation**, for
+every expression of the activity, on every retry and replay. Date arithmetic is therefore pure.
+
+**`Math.random()`** — the *n*-th call (n from 0) returns the first 53 bits of
+`SHA-256(seed ‖ n)` as a fraction in [0, 1), where `seed` is the 16 bytes of the captured seed
+UUID and `n` an 8-byte big-endian integer. Deterministic given the seed, distinct per call.
+
+**`crypto.randomUUID()`** — the *n*-th call (n from 0) returns UUID version 5 with the captured
+seed as namespace and the decimal string of *n* as name. Deterministic given the seed, distinct
+per call — which is what an idempotency key wants: identical on retry, different per activity.
+
+**`URL`** and **`URLSearchParams`** — the WHATWG classes as Node exposes them: parsing, the
+components, `searchParams` with `get`/`getAll`/`has`/`set`/`append`/`delete`/`toString`, and
+`URLSearchParams` from a string, an object or entries. Pure; `href`/`toString()` is how one
+leaves an expression.
+
+The executor captures the instant and the seed once per activity evaluation and supplies them
+to the engine; how it obtains replay-safe values is its own concern (the reference daemon uses
+the orchestration runtime's deterministic clock and id generator). A conformance case supplies
+them as `clock` and `seed`. Calling `Math.random()` or `crypto.randomUUID()` counts across all
+expressions of the activity in document order, so two expressions never draw the same value.
+
+Recorded for later, on a named need, and not part of this version: `TextDecoder` with a fixed
+label set (non-UTF-8 mail bodies), `crypto.verify` with JWK keys (signed webhooks and ID tokens,
+keys fetched by an HTTP activity), `zlib` with an output cap, `path.posix`, `Object.groupBy`.
+Never: anything with I/O or an event loop, `console`, `Intl` (output differs by ICU build),
+`process` beyond what `env` already is. `utos.*`, the host library of 0.0.15, is withdrawn:
+`utos` is not in scope and reading it is a `ReferenceError` (`UTOS-E120`).
 
 ## Conformance
 
-Two corpora under [`../conformance/`](../conformance/):
+Two corpora under [`../conformance/`](../conformance/) concern this language (a third,
+`source/`, covers the source-format mapping):
 
 - **`validation/`** — the static rules, as bundle fixtures with `code` + `path`, exactly as for
   every other rule.
@@ -306,8 +370,11 @@ timeout set on both the engine and the parsing options, and `StackOverflowGuard`
 by default in Jint 4.x, and the difference between `UTOS-E114` and a dead process. The surface
 is produced by deleting everything not listed and freezing what remains, scope values are
 frozen host-side as they are copied in, and one engine serves all the expressions of one
-activity. The grammar is checked with Acornima, the same parser the engine uses, on the tree
-the engine then runs.
+activity. `Buffer`, `crypto`, `URL` and `URLSearchParams` are host objects installed on the
+engine; `Date.now`, the zero-argument `Date` constructor, `Math.random` and `crypto.randomUUID`
+are overridden with the captured instant and seed, which the daemon takes from the orchestration
+runtime's replay-safe clock and id generator. The grammar is checked with Acornima, the same
+parser the engine uses, on the tree the engine then runs.
 
 ## Migrating from Scriban
 
@@ -326,7 +393,8 @@ differently.
 | `object.to_json x` | `JSON.stringify(x)` |
 | `html.url_encode x` | `encodeURIComponent(x)` |
 | `object.values output` | `Object.values(output)` |
-| `string.base64_decode` with manual `-`/`_` swap and padding | `utos.base64UrlDecode(data)` |
+| `string.base64_decode` with manual `-`/`_` swap and padding | `Buffer.from(data, 'base64url').toString()` |
+| `utos.base64UrlDecode(data)` (0.0.15 only) | `Buffer.from(data, 'base64url').toString()` — `utos.*` was withdrawn in 0.0.16 in favour of the Node globals |
 
 Behaviour that changes without an error: a missing member is `undefined` rather than a fatal
 error; a condition must be boolean where Scriban accepted any truthy value; `10.0 / 4` is `2.5`

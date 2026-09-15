@@ -119,8 +119,8 @@ canonical identity, so **the daemon never sees the word.**
 
 ## Activities
 
-`spec.activities` maps an activity name to its definition. The names `end` and `error` are
-reserved terminal keywords and may not be used.
+`spec.activities` maps an activity name to its definition. No name is reserved: ending a path
+and failing it are actions (`return`, `error`), not activities.
 
 Every activity has a `type` naming its kind, the fields belonging to that kind alongside it, and
 optional `onSuccess` / `onFailure` transition lists.
@@ -142,7 +142,11 @@ spec:
               to: "{{ output.customer.email }}"
         - transition: { name: wait }
       onFailure:
-        - transition: { name: error }
+        - condition: "response.status === 404"
+          error:
+            code: ORDER_NOT_FOUND
+            message: "order {{ input.orderId }} does not exist"
+        - error: { code: ORDER_FETCH_FAILED, message: "{{ error.message }}" }
 
     wait:
       type: timer
@@ -157,7 +161,7 @@ spec:
       input:
         recipient: "{{ input.to }}"
       onSuccess:
-        - result:
+        - return:
             delivered: true
 ```
 
@@ -205,7 +209,14 @@ For each entry of `spec.activities`, given `A = utos.workflow.v1.WorkflowActivit
    `on_success` / `onSuccess` and `on_failure` / `onFailure`.
 3. Every remaining key — `type` excluded — is placed on the message **along the resolved path**
    that declares a field of that name, nested under the oneof field names that reach it.
-4. The result is parsed as proto3 JSON. Unrecognized keys inside the configuration surface here
+4. In every rule — `onSuccess`, `onFailure`, `onEmitted` — a `return` key is renamed to
+   `result`, and a `return` with no value (`- return`, `- return:`, `- return: ~`) becomes an
+   empty struct, `result: {}`. The wire keeps the name `result` because `return` is a reserved
+   word in several target languages (a generated `msg.return` is a syntax error in Python), and
+   proto3 JSON reads `"result": null` as *unset* — which would be a rule with no action — so
+   "no value" has to be spelled as an empty struct by the time it reaches the bundle. The source
+   format accepts `return` only; `result` in a source document is an unknown field.
+5. The result is parsed as proto3 JSON. Unrecognized keys inside the configuration surface here
    as ordinary unknown-field errors, so no separate check is needed.
 
 So the `wait` activity above becomes:
@@ -251,14 +262,23 @@ their order is significant and is preserved through to the bundle digest. A rule
 
 Each rule carries exactly one action:
 
-- `transition` — go to another activity. `name` is an activity in the same workflow, or the
-  terminal keyword `end` or `error`. The optional `input` is a transform producing the target's
-  `input` context; leaf strings may contain `{{ }}` expressions. Omitted, the source activity's
-  output passes through unchanged.
-- `result` — end this execution path, returning the given structure.
+- `transition` — go to another activity. `name` is an activity in the same workflow — never a
+  keyword. The optional `input` is a transform producing the target's `input` context; leaf
+  strings may contain `{{ }}` expressions. Omitted, the source activity's output passes through
+  unchanged.
+- `return` — end this execution path. With a value, that structure is the path's result; with no
+  value (`- return`), the path simply ends. Written `result` in the bundle — see the mapping.
+- `error` — end this execution path as a failure. Shaped as the `WorkflowError` the run will
+  report: `code` (a literal identifier, required), `message` (a text template) and `details` (a
+  struct template), all rendered in the rule's scope, so a failure carries the reason the author
+  gave it. Every failure path that used to be `transition: { name: error }` is this.
 - `emit` — append `value` to this execution's output stream, then take `transition`. Where
-  `result` is emit-and-terminate, `emit` is emit-and-continue, so a workflow can produce many
+  `return` is emit-and-terminate, `emit` is emit-and-continue, so a workflow can produce many
   values over its lifetime instead of exactly one at the end.
+
+Failing a path is deliberately an action rather than something an expression does: a rule whose
+condition detects the bad shape and an `error` that names it are both visible in the document,
+where a `throw` inside a value would not be. The language has no `throw` for that reason.
 
 A transition may name an already-visited activity. That back-edge is a loop, and is the intended
 way to express polling.
@@ -327,7 +347,7 @@ watch:
   onEmitted:
     # This is what we were waiting for: stop, and finish with it.
     - condition: "output.subject === 'approved'"
-      result: { approvedBy: "{{ output.from }}" }
+      return: { approvedBy: "{{ output.from }}" }
 
     # Stop, but carry on with the rest of this workflow.
     - condition: "output.subject === 'cancelled'"
@@ -339,7 +359,7 @@ watch:
         startActivity: ingest
         input: { messages: "{{ output.messages }}" }
   onSuccess:
-    - result: { done: true }        # reached only when the mailbox itself ends
+    - return: { done: true }        # reached only when the mailbox itself ends
 ```
 
 An `onEmitted` rule is an optional `condition` and exactly one action. What each does to **this**
@@ -408,8 +428,8 @@ Three things follow from this being one ordered stream rather than a side channe
   handler ran inline in the consumer, and needs no keyword. A terminal `result` in a handler has
   nowhere to go and is dropped — two ways to surface a value would be one too many.
 - **A subscription outlives nothing.** It ends when a rule leaves the loop, and also when the
-  consuming execution terminates by any other route — an `end` or a `result` on some other path,
-  cancellation, failure. The producer is cancelled either way, because nothing will observe it
+  consuming execution terminates by any other route — a `return` or an `error` on some other
+  path, cancellation, failure. The producer is cancelled either way, because nothing will observe it
   again. Only the first of those is reachable *while consuming*, which is why it exists: `onSuccess`
   and `onFailure` are evaluated after the producer has finished, so a consumer with only those has
   no way to stop early.
@@ -431,7 +451,7 @@ expressions can see. Five context objects are available:
 | `input` | What this activity received — the workflow input for the start activity, or the preceding transition's transform result |
 | `output` | The raw output of the activity the transition is leaving. Meaningful on the success path; an activity that failed produced none |
 | `error` | Why the activity failed — `code` and `message`. Meaningful on the `onFailure` path |
-| `response` | The HTTP response, when the activity was `http` — `status`, `headers`, `bodyText`. Available on **both** paths |
+| `response` | The HTTP response, when the activity was `http` — `status`, `headers` (names lowercased: `response.headers['retry-after']`), `body` (the raw bytes, as a `Buffer`), `bodyText`. Available on **both** paths |
 | `env` | The run's ambient environment, supplied per execution (`utos run --env`) |
 
 `env` is deliberately not declared in the workflow document. It is per-run ambient state, the
@@ -458,7 +478,7 @@ onFailure:
     transition:
       name: backoff
       input:
-        retryAfter: "{{ response.headers['Retry-After'] }}"   # or it is gone
+        retryAfter: "{{ response.headers['retry-after'] }}"   # or it is gone
 ```
 
 ## Building a bundle
