@@ -5,7 +5,7 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.16]
+## [0.0.16] - 2026-09-15
 
 ### Changed
 - **Ending a path is an action, not a destination** (`workflow/v1/activity.proto`, `docs/workflow-source-format.md`, `docs/workflow-validation.md`). The transition targets `end` and `error` are gone. A path ends with `return` — with a value, or bare (`- return`) for no value — and fails with a new `error` action shaped as the `WorkflowError` the run will report: `code` (a literal, required — `UTOS-T005`), `message` (a text template) and `details` (a struct template). `transition: { name: error }` could carry no reason; now a failure says what the author gave it. On the wire `return` is still `result` — it was renamed away from `return` in 0.0.10 because a generated `msg.return` is a syntax error in Python — and the source format maps `return` to it, with a bare `return` becoming an empty struct, since proto3 JSON would read `"result": null` as *unset* (a rule with no action). `result` in a source document is an unknown field. `UTOS-T003` now requires an activity, `UTOS-T001` names four actions, `UTOS-A003` is retired (nothing is reserved), and every document that transitioned to `end` or `error` fails to load — loudly, at `UTOS-T003`
