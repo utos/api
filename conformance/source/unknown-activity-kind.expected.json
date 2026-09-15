@@ -1,0 +1,1 @@
+{ "issues": [ { "code": "UTOS-S007", "path": "spec.activities[\"say-hello\"].type" } ] }

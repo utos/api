@@ -44,12 +44,9 @@ Activity-name references resolve by **ordinal (case-sensitive)** comparison. Pro
 are ordinal, so any looser rule would let a document validate and then fail to find its target at
 run time.
 
-Reserved terminal keywords (`end`, `error`) are matched **case-insensitively**, both when
-rejecting them as activity names and when recognizing them as transition targets. They are a
-closed two-word vocabulary, and `End` can only have been meant as the keyword.
-
-The reference daemon conforms: activity lookup is an ordinal map, and `OrdinalIgnoreCase` appears
-only where this rule requires it, on the reserved keywords.
+There are no reserved names. Until 0.0.15 a transition could target the keywords `end` and
+`error`, matched case-insensitively; ending a path is now a `result` action and failing it an
+`error` action, so a target is always an activity and the comparison is ordinal everywhere.
 
 ---
 
@@ -121,7 +118,7 @@ pattern. The code stays the same either way.
 |---|---|
 | `UTOS-A001` | An activity name must be non-empty and contain no leading or trailing whitespace |
 | `UTOS-A002` | An activity name must be at most 63 characters |
-| `UTOS-A003` | An activity name must not be a reserved terminal keyword (`end`, `error`) |
+| ~~`UTOS-A003`~~ | *Retired in 0.0.16, not to be reused.* It kept `end` and `error` free for use as transition targets; there are no such keywords any more |
 | `UTOS-A004` | An activity name must match `^[a-zA-Z0-9_-]+$` |
 | `UTOS-A005` | An activity name must not begin with a digit, `-`, or `_` |
 | `UTOS-A006` | An activity name must not end with `-` or `_` |
@@ -141,14 +138,22 @@ activity does. The `path` names the level that is unset, e.g.
 
 | Code | Rule |
 |---|---|
-| `UTOS-T001` | A transition rule must carry exactly one action — `transition`, `result`, or `emit` |
+| `UTOS-T001` | A transition rule must carry exactly one action — `transition`, `result`, `emit`, or `error` |
 | `UTOS-T002` | A `TransitionTarget.name` must be non-empty |
-| `UTOS-T003` | A `TransitionTarget.name` must resolve to an activity in the same workflow, or to a reserved terminal keyword |
+| `UTOS-T003` | A `TransitionTarget.name` must resolve to an activity in the same workflow |
 | `UTOS-T004` | `emit.transition` is required |
+| `UTOS-T005` | An `error` action must carry a non-empty `code` |
 
-`UTOS-T003` applies at **every** `TransitionTarget` site: `onSuccess`, `onFailure`, and
-`emit.transition`. The `path` identifies which. Resolution is scoped to the workflow that declares
-the transition — a target never crosses into a sub-workflow.
+`UTOS-T003` applies at **every** `TransitionTarget` site: `onSuccess`, `onFailure`,
+`emit.transition`, and an `onEmitted` rule's `transition`. The `path` identifies which. Resolution
+is scoped to the workflow that declares the transition — a target never crosses into a
+sub-workflow. A target is always an activity: a document written before 0.0.16 that transitions
+to `end` or `error` fails here, loudly, since neither is an activity.
+
+`UTOS-T005` is what makes an `error` action reportable. `code` is the identifier a consumer or an
+`on_failure` rule matches on, so it is a literal, not a template, and it is required; `message`
+and `details` are templates and may be omitted. The rule applies to an `error` action wherever one
+appears — a transition rule or an `onEmitted` rule.
 
 A **dispatch** is not a transition site. A promise branch, and the `handle` block of an `onEmitted`
 rule, name a document rather than an activity in this one, so they are checked by
@@ -159,9 +164,9 @@ An `onEmitted` rule carrying a `transition` is therefore a transition site like 
 rule is evaluated by the consumer, so its target is an activity in the consumer's own workflow.
 What is a dispatch and what is a transition is decided per action, not per construct.
 
-`UTOS-T004` exists because `emit` is the one action that is not terminal. `result` ends a path and
-needs no target; `emit` appends a value and carries on, so a rule that emits without saying where
-to go next is a dead end rather than a return, and would strand the execution.
+`UTOS-T004` exists because `emit` is the one action that is not terminal. `result` and `error`
+end a path and need no target; `emit` appends a value and carries on, so a rule that emits without
+saying where to go next is a dead end rather than a return, and would strand the execution.
 
 The shared validator walks `onSuccess` and `onFailure` alike, so `UTOS-T003` applies uniformly
 across both.

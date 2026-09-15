@@ -5,7 +5,23 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.16]
+## [0.0.16] - 2026-09-15
+
+### Changed
+- **Ending a path is an action, not a destination** (`workflow/v1/activity.proto`, `docs/workflow-source-format.md`, `docs/workflow-validation.md`). The transition targets `end` and `error` are gone. A path ends with `return` — with a value, or bare (`- return`) for no value — and fails with a new `error` action shaped as the `WorkflowError` the run will report: `code` (a literal, required — `UTOS-T005`), `message` (a text template) and `details` (a struct template). `transition: { name: error }` could carry no reason; now a failure says what the author gave it. On the wire `return` is still `result` — it was renamed away from `return` in 0.0.10 because a generated `msg.return` is a syntax error in Python — and the source format maps `return` to it, with a bare `return` becoming an empty struct, since proto3 JSON would read `"result": null` as *unset* (a rule with no action). `result` in a source document is an unknown field. `UTOS-T003` now requires an activity, `UTOS-T001` names four actions, `UTOS-A003` is retired (nothing is reserved), and every document that transitioned to `end` or `error` fails to load — loudly, at `UTOS-T003`
+- **Failing a path is deliberately not something an expression does.** A rule's condition and an `error` action are both visible in the document; a `throw` inside a value would not be. The language stays without `throw`, `try` and `assert`
+- **The expression language exposes a subset of Node.js's globals** (`docs/template-expressions.md` § Node.js globals) instead of a library of its own: `Buffer` (bytes — `base64`, `base64url`, `hex`, `utf8`, `latin1`; `response.body` is one), `crypto` (`createHash`, `createHmac`, `hash`, `randomUUID`, `timingSafeEqual`), `Date`, `URL` and `URLSearchParams`. Chosen by one rule: it cannot be written in the language, or its cost is proportional to data the author does not control, and it does no I/O. **`utos.*` is withdrawn** — it existed for one release, and `Buffer.from(data, 'base64url').toString()` is what it was for
+- **Non-determinism is replaced, not removed.** `Date.now()`, `new Date()`, `Math.random()` and `crypto.randomUUID()` exist, and return values derived from an instant and a seed the executor captures once per activity evaluation — the same for every expression of the activity, on every retry and replay. The derivations are specified (UUID v5 over the seed; the first 53 bits of `SHA-256(seed ‖ n)`) so a second implementation computes the same ids, and the seed is required to be 128 bits from a CSPRNG, fresh per evaluation and recorded — never derived from an id, a clock or a counter — so the sequence is unpredictable to anyone who does not hold it. Conformance cases supply them as `clock` and `seed`
+- **Bitwise and shift operators are in the grammar**, and so is every assignment operator; `UTOS-E052` is retired. `new` admits `Date`, `URL` and `URLSearchParams` alongside `Set` and `Map`
+- `response.headers` names are lowercased (`response.headers['retry-after']`): HTTP header names are case-insensitive and a JavaScript property lookup is not
+- A `Buffer`, `Date` or `URL` cannot leave an expression as a value (`UTOS-E103`); bytes leave as the text the author chose. Explicit beats a silent conversion
+
+### Added
+- **A source-format conformance corpus** (`conformance/source/`): a source document and the `Workflow` it must map to, or the `UTOS-S###` it must produce. The mapping — the `type` discriminator, `return` → `result`, a bare `return` → `{}` — was specified in prose and implemented once, in the reference CLI; a second front-end (the hub's upload path) needs something to be conformant *to*. The implementation is to move from the CLI into the shared SDK
+- Evaluation cases for the Node globals and the deterministic rule; validation fixtures for the new action and the retired keywords
+
+### Recorded, not specified
+- Inbound triggers (webhooks), which is what HMAC verification waits on; secret references substituted by the executor at the HTTP boundary, so a secret never enters an expression's scope; `crypto.verify` with JWK keys; `TextDecoder` for non-UTF-8 bodies; script dependencies published to a registry, which is where anything beyond the Node subset belongs
 
 ## [0.0.15] - 2026-09-14
 

@@ -103,8 +103,8 @@ Source (informal), authored with `activities` in the order `start`, then `done`;
               "url": "https://api.example.com"
             },
             "onSuccess": [
-              { "condition": "{{ output.ok }}", "transition": { "name": "done" } },
-              { "transition": { "name": "end" } }
+              { "condition": "output.ok", "transition": { "name": "done" } },
+              { "result": {} }
             ]
           }
         }
@@ -123,9 +123,9 @@ What this demonstrates:
 - **Defaults / empties omitted:** `dependencies` (empty), `on_failure` (empty), `done`'s empty
   `onSuccess`, the unset `optional` `description`/`registry`, and any `requiredCount:0` are all
   absent.
-- **Empty messages kept:** neither activity here selects a mode, but a `workflow.call` activity
-  would carry `"call": {}` — a set message field survives even with nothing inside it, because
-  presence is the whole payload.
+- **Empty messages kept:** the fallback rule's `"result": {}` — a `return` with no value — is a
+  set message field with nothing inside it, and it survives because presence is the whole
+  payload. A `workflow.call` activity's `"call": {}` is the same case.
 - **`Duration`** as the string `"5s"`.
 
 Digest: `sha256:` `TBD (reference impl)` — see Conformance.

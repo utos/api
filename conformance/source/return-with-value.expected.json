@@ -1,0 +1,17 @@
+{
+  "workflow": {
+    "apiVersion": "utos.io/v1",
+    "kind": "Workflow",
+    "metadata": { "name": "greet", "version": "1.0.0" },
+    "spec": {
+      "activities": {
+        "say-hello": {
+          "http": { "method": "GET", "url": "https://api.example.com/hello" },
+          "onSuccess": [
+            { "condition": "output.ok", "result": { "greeted": true, "who": "{{ output.name }}" } }
+          ]
+        }
+      }
+    }
+  }
+}

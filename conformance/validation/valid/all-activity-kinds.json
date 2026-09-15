@@ -38,8 +38,9 @@
             ],
             "onFailure": [
               {
-                "transition": {
-                  "name": "error"
+                "error": {
+                  "code": "POLL_FAILED",
+                  "message": "polling failed with {{ response.status }}"
                 }
               }
             ]
@@ -120,9 +121,7 @@
             },
             "onSuccess": [
               {
-                "transition": {
-                  "name": "end"
-                }
+                "result": {}
               }
             ]
           },

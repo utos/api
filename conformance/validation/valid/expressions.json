@@ -42,20 +42,27 @@
               },
               {
                 "condition": "output.missing?.deep === 'x' || 'name' in output || typeof output.count === 'number'",
-                "result": { "decoded": "{{ utos.base64UrlDecode(output.data) }}", "big": "{{ Math.max(...output.values) }}" }
+                "result": {
+                  "decoded": "{{ Buffer.from(output.data, 'base64url').toString() }}",
+                  "digest": "{{ crypto.createHmac('sha256', env.SECRET).update(output.data).digest('hex') }}",
+                  "big": "{{ Math.max(...output.values) }}",
+                  "flags": "{{ (output.flags & 4) !== 0 && (output.flags >>> 1) > 0 }}",
+                  "id": "{{ crypto.randomUUID() }}",
+                  "query": "{{ new URLSearchParams({ q: output.name, page: 1 }).toString() }}"
+                }
               },
               {
                 "condition": "true",
                 "emit": {
                   "value": { "message": "{{ output.message }}" },
-                  "transition": { "name": "end" }
+                  "transition": { "name": "fetch" }
                 }
               }
             ],
             "onFailure": [
               {
                 "condition": "response.status === 429 || response.status >= 500",
-                "transition": { "name": "end", "input": { "retryAfter": "{{ response.headers['Retry-After'] }}" } }
+                "transition": { "name": "fetch", "input": { "retryAfter": "{{ response.headers['retry-after'] }}", "raw": "{{ response.body.toString('hex') }}" } }
               }
             ]
           },
@@ -82,7 +89,7 @@
               "input": { "id": "{{ input.id }}" },
               "call": {
                 "onEmitted": [
-                  { "condition": "output.message === 'done'", "transition": { "name": "end" } },
+                  { "condition": "output.message === 'done'", "result": {} },
                   { "handle": { "workflow": "acme/expressions:1.0.0", "startActivity": "fetch", "input": { "id": "{{ output.message }}" } } }
                 ]
               }

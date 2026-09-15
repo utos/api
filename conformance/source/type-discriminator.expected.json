@@ -1,0 +1,20 @@
+{
+  "workflow": {
+    "apiVersion": "utos.io/v1",
+    "kind": "Workflow",
+    "metadata": { "name": "greet", "version": "1.0.0" },
+    "spec": {
+      "dependencies": { "emailer": "./send-email.yaml" },
+      "activities": {
+        "notify": {
+          "workflow": { "workflow": "emailer", "startActivity": "send", "input": { "to": "{{ input.email }}" }, "call": {} },
+          "onSuccess": [ { "result": {} } ]
+        },
+        "wait": {
+          "timer": { "duration": "30s" },
+          "onSuccess": [ { "transition": { "name": "notify" } } ]
+        }
+      }
+    }
+  }
+}

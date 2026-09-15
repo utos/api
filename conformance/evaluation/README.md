@@ -23,7 +23,8 @@ has to answer identically.
 |---|---|
 | `form` | `condition` (bare, must be boolean), `value` (whole-field, typed), or `text` (rendered to a string) |
 | `expression` | The program, exactly as it would appear inside `{{ }}` — the delimiters are not part of the case |
-| `scope` | The names in scope and their values, as JSON. Names absent here are absent in scope |
+| `scope` | The names in scope and their values, as JSON. Names absent here are absent in scope. A `Buffer` in scope (such as `response.body`) is written as `{ "$buffer": "<base64>" }` |
+| `clock`, `seed` | Optional: the instant (ISO 8601) and the seed (a UUID) the executor captured for the evaluation — what `Date.now()`, `new Date()`, `Math.random()` and `crypto.randomUUID()` derive from |
 | `before` | Optional: a program evaluated first, on the same engine and scope, as two expressions of one activity are — for cases about what one expression can and cannot leave behind for the next |
 | `expect` | Exactly one of `value` (compared as JSON), `omitted` (`true`: the whole result was `undefined`, so the field is omitted), or `error` (a `UTOS-E1##` code) |
 

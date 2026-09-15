@@ -1,0 +1,22 @@
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: greet
+  version: 1.0.0
+spec:
+  dependencies:
+    emailer: ./send-email.yaml
+  activities:
+    notify:
+      type: workflow.call
+      workflow: emailer
+      startActivity: send
+      input:
+        to: "{{ input.email }}"
+      onSuccess:
+        - return
+    wait:
+      type: timer
+      duration: 30s
+      onSuccess:
+        - transition: { name: notify }
