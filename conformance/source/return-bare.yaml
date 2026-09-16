@@ -11,7 +11,8 @@ spec:
       url: https://api.example.com/hello
       onSuccess:
         - condition: "output.done"
-          return
-        - condition: "output.later"
           return:
-        - return: ~
+        - condition: "output.later"
+          return: ~
+        - { condition: "output.flow", return }
+        - return

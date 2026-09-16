@@ -7,11 +7,11 @@
       "activities": {
         "say-hello": {
           "http": { "method": "GET", "url": "https://api.example.com/hello" },
-          "onSuccess": [
-            { "condition": "output.done", "result": {} },
-            { "condition": "output.later", "result": {} },
-            { "condition": "output.flow", "result": {} },
-            { "result": {} }
+          "onFailure": [
+            { "condition": "response.status === 429", "error": {} },
+            { "condition": "response.status === 503", "error": {} },
+            { "condition": "response.status === 504", "error": {} },
+            { "error": {} }
           ]
         }
       }

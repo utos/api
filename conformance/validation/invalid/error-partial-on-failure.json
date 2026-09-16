@@ -1,0 +1,18 @@
+{
+  "entryPoint": "greet:1.0.0",
+  "workflows": {
+    "greet:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": { "name": "greet", "version": "1.0.0", "description": "A message without a code on onFailure: not a re-raise, which carries no fields at all." },
+      "spec": {
+        "activities": {
+          "say-hello": {
+            "http": { "method": "GET", "url": "https://api.example.com/hello" },
+            "onFailure": [ { "error": { "message": "hello failed: {{ error.message }}" } } ]
+          }
+        }
+      }
+    }
+  }
+}

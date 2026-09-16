@@ -5,6 +5,17 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.17] - 2026-09-16
+
+### Added
+- **A bare `error` re-raises the failure being handled** (`docs/workflow-source-format.md`, `docs/workflow-validation.md`, `workflow/v1/activity.proto`). `- error` (or `error:`, `error: ~`, flow-style `{ condition: x, error }`) in an `onFailure` rule fails the path with the failure in scope as it is — its `code`, `message` and `details` — so a rule can forward a sub-workflow's failure without renaming it or copying its message into a new code. On the wire it is an empty `WorkflowError`, as a bare `return` is an empty struct. `UTOS-T005` still applies everywhere else: `onSuccess` and `onEmitted` have no failure in scope, and a `message` or `details` without a `code` is a mistake rather than a re-raise. `code` stays a literal; an upstream service's own code belongs in `details`
+- **`error.details` is in scope** (`docs/template-expressions.md` § Scope, `docs/workflow-source-format.md` § Templates). `error` on the failure path is `{ code, message, details }`, with `details` `null` when the failure carried none; the scope table listed only `code` and `message`, though an `error` action has carried `details` since 0.0.16
+- **`UTOS-E105`: a `forEach.collection` must evaluate to an array** (`docs/template-expressions.md` § Where expressions appear). A string, an object, a number, `null` or `undefined` fails the evaluation, where it could otherwise have expanded to zero branches or iterated a string's characters. The reference daemon has raised it since 0.0.15; the spec never gave it a row. The evaluation corpus gains `form: collection` to test it
+- Conformance: evaluation cases for `error.details` and `UTOS-E105`, a source case for every spelling of the bare `error`, and validation fixtures for the re-raise where it is legal and the three places it is not
+
+### Fixed
+- `conformance/source/return-bare.yaml` was not valid YAML: a bare `return` line after a `condition:` is a block-mapping entry without a colon, which no YAML parser accepts, so no implementation could pass the case. The case now pins the spellings YAML allows — `return:`, `return: ~`, the flow-style `{ condition: x, return }`, and the bare list item `- return` for a rule without a condition — and `docs/workflow-source-format.md` says which is which. `return:` is the taught form. Found by running the corpus through the reference CLI, which is what the corpus is for
+
 ## [0.0.16] - 2026-09-15
 
 ### Changed

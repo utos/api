@@ -1,0 +1,35 @@
+{
+  "entryPoint": "acme/watcher:1.0.0",
+  "workflows": {
+    "acme/watcher:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": { "name": "watcher", "namespace": "acme", "version": "1.0.0", "description": "An empty error on an onEmitted rule, which fires on a value and has no failure to re-raise." },
+      "spec": {
+        "activities": {
+          "watch": {
+            "workflow": {
+              "workflow": "acme/mailbox:1.0.0",
+              "startActivity": "poll",
+              "call": {
+                "onEmitted": [ { "condition": "output.kind === 'bad'", "error": {} } ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "acme/mailbox:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": { "name": "mailbox", "namespace": "acme", "version": "1.0.0" },
+      "spec": {
+        "activities": {
+          "poll": {
+            "http": { "method": "GET", "url": "https://api.example.com/messages" }
+          }
+        }
+      }
+    }
+  }
+}
