@@ -220,6 +220,10 @@ For each entry of `spec.activities`, given `A = utos.workflow.v1.WorkflowActivit
    proto3 JSON reads `"result": null` as *unset* — which would be a rule with no action — so
    "no value" has to be spelled as an empty struct by the time it reaches the bundle. The source
    format accepts `return` only; `result` in a source document is an unknown field.
+
+   An `error` with no fields is read the same way and becomes an empty `WorkflowError`,
+   `error: {}` — the re-raise: `error:`, `error: ~`, `error: null`, the flow-style
+   `{ condition: x, error }`, and the bare list item `- error`. `error` keeps its name on the wire.
 5. The result is parsed as proto3 JSON. Unrecognized keys inside the configuration surface here
    as ordinary unknown-field errors, so no separate check is needed.
 
@@ -276,6 +280,12 @@ Each rule carries exactly one action:
   report: `code` (a literal identifier, required), `message` (a text template) and `details` (a
   struct template), all rendered in the rule's scope, so a failure carries the reason the author
   gave it. Every failure path that used to be `transition: { name: error }` is this.
+  **With no fields** (`- error`, `error:`), on `onFailure`, it re-raises the failure being handled
+  as it is — the same `code`, `message` and `details` — which is how a rule forwards a failure it
+  has no reason to rename, such as a sub-workflow's. `onSuccess` and `onEmitted` have no failure
+  in scope to re-raise, so there an `error` must carry a `code` (`UTOS-T005`). A `code` stays a
+  literal either way: the rethrow is what forwarding is for, and an upstream service's own code
+  belongs in `details`.
 - `emit` — append `value` to this execution's output stream, then take `transition`. Where
   `return` is emit-and-terminate, `emit` is emit-and-continue, so a workflow can produce many
   values over its lifetime instead of exactly one at the end.
@@ -454,7 +464,7 @@ expressions can see. Five context objects are available:
 |---|---|
 | `input` | What this activity received — the workflow input for the start activity, or the preceding transition's transform result |
 | `output` | The raw output of the activity the transition is leaving. Meaningful on the success path; an activity that failed produced none |
-| `error` | Why the activity failed — `code` and `message`. Meaningful on the `onFailure` path |
+| `error` | Why the activity failed — `code`, `message` and `details`. Meaningful on the `onFailure` path |
 | `response` | The HTTP response, when the activity was `http` — `status`, `headers` (names lowercased: `response.headers['retry-after']`), `body` (the raw bytes, as a `Buffer`), `bodyText`. Available on **both** paths |
 | `env` | The run's ambient environment, supplied per execution (`utos run --env`) |
 

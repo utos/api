@@ -142,7 +142,7 @@ activity does. The `path` names the level that is unset, e.g.
 | `UTOS-T002` | A `TransitionTarget.name` must be non-empty |
 | `UTOS-T003` | A `TransitionTarget.name` must resolve to an activity in the same workflow |
 | `UTOS-T004` | `emit.transition` is required |
-| `UTOS-T005` | An `error` action must carry a non-empty `code` |
+| `UTOS-T005` | An `error` action must carry a non-empty `code`, unless it is empty and on `onFailure` — the re-raise |
 
 `UTOS-T003` applies at **every** `TransitionTarget` site: `onSuccess`, `onFailure`,
 `emit.transition`, and an `onEmitted` rule's `transition`. The `path` identifies which. Resolution
@@ -154,6 +154,13 @@ to `end` or `error` fails here, loudly, since neither is an activity.
 `on_failure` rule matches on, so it is a literal, not a template, and it is required; `message`
 and `details` are templates and may be omitted. The rule applies to an `error` action wherever one
 appears — a transition rule or an `onEmitted` rule.
+
+The one exception is the **re-raise**: an `error` with no `code`, no `message` and no `details`, in
+an `onFailure` rule, fails the path with the failure being handled, as it is. Only `onFailure` has
+one in scope — after a success, and when an `onEmitted` rule fires on a value, `error` is `null`
+— so an empty `error` anywhere else is still `UTOS-T005`, as is a partly written one on
+`onFailure`: a `message` or `details` without a `code` is a mistake, not a re-raise, because
+there is no way to re-raise a failure with its explanation replaced and its identifier kept.
 
 A **dispatch** is not a transition site. A promise branch, and the `handle` block of an `onEmitted`
 rule, name a document rather than an activity in this one, so they are checked by

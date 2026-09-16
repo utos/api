@@ -1,0 +1,53 @@
+{
+  "entryPoint": "acme/checkout:1.0.0",
+  "workflows": {
+    "acme/checkout:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "checkout",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "Failures handled three ways: renamed, retried, and re-raised as they are."
+      },
+      "spec": {
+        "activities": {
+          "charge": {
+            "workflow": {
+              "workflow": "acme/payments:1.0.0",
+              "startActivity": "charge",
+              "call": {}
+            },
+            "onSuccess": [ { "result": {} } ],
+            "onFailure": [
+              { "condition": "error.code === 'CARD_DECLINED'", "error": { "code": "PAYMENT_REFUSED", "details": { "reason": "{{ error.details?.reason }}" } } },
+              { "condition": "error.code === 'RATE_LIMITED'", "transition": { "name": "backoff" } },
+              { "error": {} }
+            ]
+          },
+          "backoff": {
+            "timer": { "duration": "5s" },
+            "onSuccess": [ { "transition": { "name": "charge" } } ]
+          }
+        }
+      }
+    },
+    "acme/payments:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": { "name": "payments", "namespace": "acme", "version": "1.0.0" },
+      "spec": {
+        "activities": {
+          "charge": {
+            "http": { "method": "POST", "url": "https://api.example.com/charges" },
+            "onSuccess": [ { "result": {} } ],
+            "onFailure": [
+              { "condition": "response.status === 402", "error": { "code": "CARD_DECLINED", "details": { "reason": "{{ response.bodyText }}" } } },
+              { "error": {} }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: greet
+  version: 1.0.0
+spec:
+  activities:
+    say-hello:
+      type: http
+      method: GET
+      url: https://api.example.com/hello
+      onFailure:
+        - condition: "response.status === 429"
+          error:
+        - condition: "response.status === 503"
+          error: ~
+        - { condition: "response.status === 504", error }
+        - error

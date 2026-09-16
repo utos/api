@@ -33,7 +33,7 @@ another tool has. Evaluation rules are enforced by the executor on every evaluat
 | Field | Form |
 |---|---|
 | `TransitionRule.condition`, `EmissionRule.condition`, `PromiseBranch.condition` | **Condition** — the whole string is one expression, no delimiters, must be boolean |
-| `PromiseForEach.collection` | **Whole-field value** — `{{ }}`, must evaluate to an array |
+| `PromiseForEach.collection` | **Whole-field value** — `{{ }}`, must evaluate to an array; anything else — a string, an object, a number, `null`, `undefined` — is `UTOS-E105` |
 | Leaf strings of `TransitionTarget.input`, `EmitAction.value`, `TransitionRule.result`, `EmissionRule.result`, `CallActivityConfig.input`, `HandlerDispatch.input`, `PromiseBranch.input` | **Value** — whole-field or interpolation |
 | `HttpActivityConfig.url`, `.headers` values, `.body`; `PromiseBranch.name` | **Text** — whole-field or interpolation, always rendered to a string |
 
@@ -111,6 +111,12 @@ are evaluated in document order.
 property lookup is not, so one spelling is chosen, Node's), `body` the raw response bytes as a
 `Buffer` (§ Node.js globals), `bodyText` the body as text. Every key is present and `null` when
 there was no response.
+
+`error` is `{ code, message, details }`: the failure's identifier and explanation, and `details`,
+the structured details it carried — what an `error` action's `details` rendered to, including one
+a failed sub-workflow raised — or `null` when it carried none. Every key is present on the failure
+path, so `error.details?.orderId` reads through or is `undefined`, and never fails for want of a
+`details` key.
 
 The meaning of each context — what `input` is on the start activity, why `error` is separate
 from `output`, that `error` and `response` describe the activity a transition is *leaving* and
@@ -357,7 +363,7 @@ Two corpora under [`../conformance/`](../conformance/) concern this language (a 
 
 ```json
 {
-  "form": "condition | value | text",
+  "form": "condition | value | text | collection",
   "expression": "output.items.map(i => i.id)",
   "scope": { "output": { "items": [ { "id": "a" } ] } },
   "expect": { "value": ["a"] }
