@@ -5,6 +5,11 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.17]
+
+### Fixed
+- `conformance/source/return-bare.yaml` was not valid YAML: a bare `return` line after a `condition:` is a block-mapping entry without a colon, which no YAML parser accepts, so no implementation could pass the case. The case now pins the spellings YAML allows — `return:`, `return: ~`, the flow-style `{ condition: x, return }`, and the bare list item `- return` for a rule without a condition — and `docs/workflow-source-format.md` says which is which. `return:` is the taught form. Found by running the corpus through the reference CLI, which is what the corpus is for
+
 ## [0.0.16] - 2026-09-15
 
 ### Changed

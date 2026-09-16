@@ -210,8 +210,12 @@ For each entry of `spec.activities`, given `A = utos.workflow.v1.WorkflowActivit
 3. Every remaining key — `type` excluded — is placed on the message **along the resolved path**
    that declares a field of that name, nested under the oneof field names that reach it.
 4. In every rule — `onSuccess`, `onFailure`, `onEmitted` — a `return` key is renamed to
-   `result`, and a `return` with no value (`- return`, `- return:`, `- return: ~`) becomes an
-   empty struct, `result: {}`. The wire keeps the name `result` because `return` is a reserved
+   `result`, and a `return` with no value becomes an empty struct, `result: {}`. "No value" is
+   `return:` with nothing after it, `return: ~` or `return: null`; in flow style, the entry
+   without a value, `{ condition: output.done, return }`; and, for a rule with no condition, the
+   bare list item `- return`, which YAML reads as the string `return` and this mapping reads as
+   the whole rule. A block-style `return` line without a colon under a `condition:` is not YAML,
+   and no mapping can read it. The wire keeps the name `result` because `return` is a reserved
    word in several target languages (a generated `msg.return` is a syntax error in Python), and
    proto3 JSON reads `"result": null` as *unset* — which would be a rule with no action — so
    "no value" has to be spelled as an empty struct by the time it reaches the bundle. The source
