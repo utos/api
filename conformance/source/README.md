@@ -29,8 +29,8 @@ Compared as JSON: key order is not significant, and absent optional fields and e
 not distinguished from omitted ones. Message text is never part of a case.
 
 One rule per case, named for it: the `type` discriminator, `return` with and without a value,
-the `error` action, a `result` key in source (an unknown field), duplicate keys, an unknown
-activity kind.
+the `error` action with and without fields, a `result` key in source (an unknown field),
+duplicate keys, an unknown activity kind.
 
 ## Running them
 

@@ -15,7 +15,8 @@ option csharp_namespace = "Utos.Workflows.V1";
 // fail says exactly what the run will report.
 message WorkflowError {
   // A stable identifier for the failure class, e.g. "MISSING_CUSTOMER". As an
-  // authored action it is a literal (never a template) and required (UTOS-T005).
+  // authored action it is a literal (never a template) and required (UTOS-T005),
+  // except in the empty re-raise form an `on_failure` rule may carry.
   string code = 1;
 
   // Human-readable explanation. As an authored action, a text template.

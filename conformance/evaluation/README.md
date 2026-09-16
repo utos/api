@@ -21,7 +21,7 @@ has to answer identically.
 
 | Field | Meaning |
 |---|---|
-| `form` | `condition` (bare, must be boolean), `value` (whole-field, typed), or `text` (rendered to a string) |
+| `form` | `condition` (bare, must be boolean), `value` (whole-field, typed), `text` (rendered to a string), or `collection` (whole-field, typed, and must be an array — a `PromiseForEach.collection`, where anything else is `UTOS-E105`) |
 | `expression` | The program, exactly as it would appear inside `{{ }}` — the delimiters are not part of the case |
 | `scope` | The names in scope and their values, as JSON. Names absent here are absent in scope. A `Buffer` in scope (such as `response.body`) is written as `{ "$buffer": "<base64>" }` |
 | `clock`, `seed` | Optional: the instant (ISO 8601) and the seed (a UUID) the executor captured for the evaluation — what `Date.now()`, `new Date()`, `Math.random()` and `crypto.randomUUID()` derive from |
