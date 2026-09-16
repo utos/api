@@ -5,7 +5,7 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.17]
+## [0.0.17] - 2026-09-16
 
 ### Added
 - **A bare `error` re-raises the failure being handled** (`docs/workflow-source-format.md`, `docs/workflow-validation.md`, `workflow/v1/activity.proto`). `- error` (or `error:`, `error: ~`, flow-style `{ condition: x, error }`) in an `onFailure` rule fails the path with the failure in scope as it is — its `code`, `message` and `details` — so a rule can forward a sub-workflow's failure without renaming it or copying its message into a new code. On the wire it is an empty `WorkflowError`, as a bare `return` is an empty struct. `UTOS-T005` still applies everywhere else: `onSuccess` and `onEmitted` have no failure in scope, and a `message` or `details` without a `code` is a mistake rather than a re-raise. `code` stays a literal; an upstream service's own code belongs in `details`
