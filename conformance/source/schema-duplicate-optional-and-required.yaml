@@ -1,0 +1,16 @@
+# `quality` and `quality?` differ as text, so no duplicate-key check objects —
+# and they mean one property, declared both required and optional.
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: resize
+  version: 1.0.0
+spec:
+  activities:
+    resize:
+      type: timer
+      schema:
+        input:
+          quality:  { type: integer }
+          quality?: { type: integer, default: 80 }
+      duration: 1s

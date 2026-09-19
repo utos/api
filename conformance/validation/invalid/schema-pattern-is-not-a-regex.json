@@ -1,0 +1,36 @@
+{
+  "entryPoint": "acme/resize:1.0.0",
+  "workflows": {
+    "acme/resize:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "resize",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "An unparseable pattern checks nothing, and would fail at the boundary rather than at load."
+      },
+      "spec": {
+        "activities": {
+          "resize": {
+            "schema": {
+              "input": {
+                "type": "object",
+                "properties": {
+                  "orderId": {
+                    "type": "string",
+                    "pattern": "A-[0-9"
+                  }
+                },
+                "unevaluatedProperties": false
+              }
+            },
+            "timer": {
+              "duration": "1s"
+            }
+          }
+        }
+      }
+    }
+  }
+}

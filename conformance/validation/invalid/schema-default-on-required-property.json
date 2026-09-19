@@ -1,0 +1,39 @@
+{
+  "entryPoint": "acme/resize:1.0.0",
+  "workflows": {
+    "acme/resize:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "resize",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "A default on a required property can never be reached: the value is always supplied."
+      },
+      "spec": {
+        "activities": {
+          "resize": {
+            "schema": {
+              "input": {
+                "type": "object",
+                "required": [
+                  "quality"
+                ],
+                "properties": {
+                  "quality": {
+                    "type": "integer",
+                    "default": 80
+                  }
+                },
+                "unevaluatedProperties": false
+              }
+            },
+            "timer": {
+              "duration": "1s"
+            }
+          }
+        }
+      }
+    }
+  }
+}

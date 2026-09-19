@@ -1,0 +1,41 @@
+{
+  "workflow": {
+    "apiVersion": "utos.io/v1",
+    "kind": "Workflow",
+    "metadata": { "name": "mailbox", "version": "1.0.0" },
+    "spec": {
+      "env": {
+        "type": "object",
+        "required": ["MAIL_API"],
+        "properties": {
+          "MAIL_API": { "type": "string" },
+          "REGION": { "type": "string", "default": "us-east-1" },
+          "LOG_LEVEL": { "type": "string", "enum": ["debug", "info", "warn"] }
+        }
+      },
+      "output": {
+        "type": "object",
+        "required": ["count", "delivered"],
+        "properties": {
+          "delivered": { "type": "boolean" },
+          "count": { "type": "integer" }
+        },
+        "unevaluatedProperties": false
+      },
+      "emits": {
+        "type": "object",
+        "required": ["messageId"],
+        "properties": {
+          "messageId": { "type": "string" },
+          "subject": { "type": ["string", "null"] }
+        },
+        "unevaluatedProperties": false
+      },
+      "activities": {
+        "poll": {
+          "http": { "method": "GET", "url": "{{ env.MAIL_API }}/messages" }
+        }
+      }
+    }
+  }
+}

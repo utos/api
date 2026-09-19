@@ -1,0 +1,27 @@
+# `$schema` selects raw JSON Schema, for what the short form does not reach.
+# It is dropped on compilation: the dialect is pinned by the spec, so carrying
+# it would be noise two builds had to keep identical.
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: pay
+  version: 1.0.0
+spec:
+  activities:
+    charge:
+      type: timer
+      schema:
+        input:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          required: [payment]
+          properties:
+            payment:
+              oneOf:
+                - { $ref: "#/$defs/Card" }
+                - { $ref: "#/$defs/Invoice" }
+          unevaluatedProperties: false
+          $defs:
+            Card: { type: object, properties: { pan: { type: string } } }
+            Invoice: { type: object, properties: { ref: { type: string } } }
+      duration: 1s

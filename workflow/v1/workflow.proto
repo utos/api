@@ -1,5 +1,6 @@
 syntax = "proto3";
 
+import "google/protobuf/struct.proto";
 import "workflow/v1/activity.proto";
 
 package utos.workflow.v1;
@@ -74,7 +75,53 @@ message WorkflowSpec {
   map<string, string> dependencies = 1;
 
   // Map of activity name to activity definition. Activity names (the keys) are
-  // referenced by TransitionTarget.name; the terminal keywords "end" and "error"
-  // are reserved and may not be used as activity names.
+  // referenced by TransitionTarget.name.
+  //
+  // No name is reserved. Until 0.0.16 "end" and "error" were terminal keywords
+  // a transition could target; ending a path is now a `result` action and
+  // failing it an `error` action, so a target is always an activity and the
+  // comparison is ordinal everywhere (UTOS-A003 is retired).
   map<string, WorkflowActivity> activities = 2;
+
+  // A JSON Schema 2020-12 document describing what this workflow returns — the
+  // value of the `result` terminal entry of its output stream. Optional; absent
+  // is the empty schema, which anything satisfies.
+  //
+  // Output is declared here and input is not, and the asymmetry is the point.
+  // A run is scheduled with a start activity and its input goes to *that*
+  // activity, so input belongs on ActivitySchema; a result is one shape
+  // whatever the entry, so it belongs here. There is deliberately no
+  // `spec.input`.
+  //
+  // A result that violates this fails the run, and that is not a policy an
+  // author opts into: a workflow returning the wrong shape is broken, and the
+  // caller that trusted its contract is the one that would otherwise carry the
+  // damage. See docs/workflow-schemas.md.
+  google.protobuf.Struct output = 3;
+
+  // A JSON Schema 2020-12 document describing each value this workflow appends
+  // to its output stream with an `emit` action. Optional, as `output` is.
+  //
+  // A contract in its own right: a consumer's `on_emitted` rules depend on it
+  // exactly as a caller depends on a result. It describes ONE emitted value,
+  // not the stream — the stream is a sequence of values each of which must
+  // satisfy this — and an emit that violates it fails the run, for the same
+  // reason a bad result does.
+  google.protobuf.Struct emits = 4;
+
+  // A JSON Schema 2020-12 document describing the ambient environment this
+  // workflow requires — the `env` a run is scheduled with, and what `{{ env.x }}`
+  // reads. Optional, as the others are.
+  //
+  // Every property is a string, because ScheduleExecutionRequest.env is
+  // map<string, string>; the source format's sugar enforces that and this is
+  // its compiled form. A run missing a required variable is rejected at
+  // schedule, before anything executes, and a declared `default` is filled at
+  // the same point.
+  //
+  // `env` is still per-run ambient state supplied by whoever starts the run —
+  // the analogue of `docker run -e` — not something the document sets. This
+  // declares what the document needs, which every workflow we have has
+  // documented in comments and nothing has ever checked.
+  google.protobuf.Struct env = 5;
 }
