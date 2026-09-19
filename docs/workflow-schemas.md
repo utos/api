@@ -403,7 +403,7 @@ not re-derive it.
 
 | Code | Catchable |
 |---|---|
-| `UTOS-H101`, `UTOS-H102` | No run exists yet. `ScheduleExecution` returns `INVALID_ARGUMENT` |
+| `UTOS-H101`, `UTOS-H102` | No run exists yet. `ScheduleExecution` returns `INVALID_ARGUMENT`, with the failures as `google.rpc.BadRequest` |
 | `UTOS-H103` | **No.** The run fails |
 | `UTOS-H104` | Yes, by the invoking construct — a `workflow.call` or `workflow.spawn` activity's `onFailure`, a promise branch failing its promise, a `handle` failing its consumer |
 | `UTOS-H107` | As the boundary it occurred at: at schedule it is `INVALID_ARGUMENT`, elsewhere it is that boundary's failure |
@@ -462,9 +462,24 @@ have to parse a pointer to make it.
 A cap of **100 entries** keeps a pathological payload from producing a pathological error; beyond
 it the list is truncated and carries the number dropped.
 
-At schedule the list is the `INVALID_ARGUMENT` status' details. At run time it is the failure's
-`details`, under a `schema` key, which puts it in scope for an `onFailure` rule as
-`error.details.schema`:
+**At schedule the list is carried as `google.rpc.BadRequest`** in the `INVALID_ARGUMENT` status'
+details — the standard type for field-level validation failures, so a generic client renders it
+without knowing anything about Utos. One `FieldViolation` per entry:
+
+| `FieldViolation` | Carries |
+|---|---|
+| `field` | `instanceLocation` |
+| `reason` | `keyword` |
+| `description` | Free text, including `keywordLocation` |
+
+The two contractual fields land in structured slots and `keywordLocation` does not, which is the
+right way round: it is the one part of the triple the conformance corpus deliberately does not
+assert, because more than one schema location can legitimately produce the same failure. The
+status `message` still names the code and every failing location, so a client that reads nothing
+but the message loses no information — only the ability to branch on it without parsing prose.
+
+At run time the list is the failure's `details`, under a `schema` key, which puts it in scope for
+an `onFailure` rule as `error.details.schema`:
 
 ```json
 {
@@ -498,7 +513,7 @@ implementation applies them wherever it applies that document, and never assumes
 | `UTOS-H003` | A schema's top level must declare `"type": "object"` |
 | `UTOS-H004` | `$schema`, where present, must be `https://json-schema.org/draft/2020-12/schema` |
 | `UTOS-H005` | A `$ref` must be a JSON Pointer into this schema's own `$defs`, or a published `utos:` type |
-| `UTOS-H006` | Every `$ref` must resolve, and the reference graph must be acyclic |
+| `UTOS-H006` | Every `$ref` must resolve, and a chain of them must terminate |
 | `UTOS-H007` | A `format` must be one of those listed in § Formats |
 | `UTOS-H008` | A `default` must validate against the schema that declares it |
 | `UTOS-H009` | A `default` may only be declared on a property that is not `required` |
@@ -522,6 +537,21 @@ room to add a key without changing the type of everything that reads it.
 `UTOS-H005` is what keeps schema evaluation offline. A `$ref` to `https://…` or to a file is
 refused at load rather than fetched, so a workflow's meaning does not depend on what some host
 served at build time and a registry outage cannot stop one loading.
+
+**`UTOS-H006` refuses a chain that does not terminate, not every cycle**, and the distinction is
+the whole of the rule. A schema that reaches itself *through* an instance-consuming keyword —
+`properties`, `items` — is an ordinary recursive schema describing a tree:
+
+```json
+{ "$defs": { "Node": { "type": "object",
+    "properties": { "child": { "$ref": "#/$defs/Node" } } } } }
+```
+
+That terminates on the data, because each step down the `$ref` consumes a level of the instance,
+and it is the reason `$defs` is worth having. What does not terminate is a chain of **bare**
+`$ref` indirection — `Node` → `Wrapper` → `Node` — which consumes nothing and has no fixed point
+to evaluate. Only that is `UTOS-H006`. An earlier wording said "the reference graph must be
+acyclic", which would have banned the recursive case along with the broken one.
 
 `UTOS-H013` and `UTOS-H014` are the checks that fire **before a run starts**, and they are
 deliberately narrow: they compare **property sets**, not values. An input transform's keys are
@@ -659,6 +689,15 @@ of its rules — `UTOS-H008`, a default validating against its own schema — ne
 against a schema that is not known until a bundle is read; implementations that publish a
 NativeAOT binary should confirm their evaluator works without run-time reflection before adopting
 it, which is the one place this feature reaches into how a tool is built.
+
+**Reading the schedule-path details is optional, and a NativeAOT client may prefer not to.**
+Packing and unpacking `google.rpc.Status.details` goes through `google.protobuf.Any`, whose
+type-URL resolution is not statically analysable: a .NET client doing the full round trip raises
+an AOT analysis warning that the same client raises none of without it. That is a cost only a
+client that *parses* the details pays. The status `message` carries the code and every failing
+location, so a tool can render a complete diagnostic and never touch `Any` — which is what the
+reference CLI does, keeping its NativeAOT build free of the warning. The structured form is there
+for clients that want to branch on it.
 
 **`utos inspect` shows the contract** — the start activity's input, `spec.output`, `spec.emits`,
 `spec.env` — which is also what a registry renders on a workflow's page.

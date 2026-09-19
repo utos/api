@@ -5,6 +5,17 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.19]
+
+### Fixed
+- **`UTOS-H006` refuses a `$ref` chain that does not terminate, not every cycle** (`docs/workflow-schemas.md`). The rule said "the reference graph must be acyclic", which would have banned the case `$defs` exists for: a schema that reaches itself *through* `properties` or `items` is an ordinary recursive schema describing a tree, and it terminates on the data because each step consumes a level of the instance. What does not terminate is a chain of **bare** `$ref` indirection — `Node` → `Wrapper` → `Node` — which consumes nothing and has no fixed point to evaluate. Only that is a violation. Found while implementing the rule: the narrow reading is the one that can actually be written
+
+### Changed
+- **Schedule-path failures are carried as `google.rpc.BadRequest`** (`docs/workflow-schemas.md` § What a failure reports). `UTOS-H101` and `UTOS-H102` are reported as `INVALID_ARGUMENT`, and the spec said the failure list was "the status' details" without saying in what form — but `google.rpc.Status.details` is `repeated google.protobuf.Any`, so "a list" is not a thing it can hold. Left unsaid, every implementation would have invented its own message and no client could read another daemon's details. `BadRequest` is the standard type for field-level validation failures, so a generic client renders it without knowing anything about Utos: `field` carries `instanceLocation`, `reason` carries `keyword`, and `description` carries free text including `keywordLocation`. The two contractual fields land in structured slots and `keywordLocation` does not, which is the right way round — it is the one part of the triple the conformance corpus deliberately does not assert
+
+### Recorded, not specified
+- **Reading those details is optional, and a NativeAOT client may prefer not to.** Round-tripping `Any` is not statically analysable, and a .NET client doing it raises an AOT analysis warning that the same client raises none of without it. The status `message` carries the code and every failing location, so a tool can render a complete diagnostic without touching `Any` — which is what the reference CLI does. Measured rather than assumed: the CLI's NativeAOT publish is warning-free today, and the round trip introduces the first one
+
 ## [0.0.18] - 2026-09-19
 
 ### Added
