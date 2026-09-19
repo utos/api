@@ -1,0 +1,15 @@
+# `blob` is not in the type registry in this version — it arrives with binary
+# data. A type the registry does not list is a defect in the document.
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: resize
+  version: 1.0.0
+spec:
+  activities:
+    resize:
+      type: timer
+      schema:
+        input:
+          photo: { type: blob }
+      duration: 1s

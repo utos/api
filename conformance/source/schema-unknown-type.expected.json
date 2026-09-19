@@ -1,0 +1,8 @@
+{
+  "issues": [
+    {
+      "code": "UTOS-S013",
+      "path": "spec.activities[\"resize\"].schema.input[\"photo\"].type"
+    }
+  ]
+}

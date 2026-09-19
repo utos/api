@@ -1,0 +1,35 @@
+{
+  "entryPoint": "acme/resize:1.0.0",
+  "workflows": {
+    "acme/resize:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "resize",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "A $ref reaches this schema’s own $defs and the types the spec publishes; the published registry is empty in this version."
+      },
+      "spec": {
+        "activities": {
+          "resize": {
+            "schema": {
+              "input": {
+                "type": "object",
+                "properties": {
+                  "photo": {
+                    "$ref": "utos:blob"
+                  }
+                },
+                "unevaluatedProperties": false
+              }
+            },
+            "timer": {
+              "duration": "1s"
+            }
+          }
+        }
+      }
+    }
+  }
+}

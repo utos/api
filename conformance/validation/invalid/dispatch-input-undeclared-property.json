@@ -1,0 +1,49 @@
+{
+  "entryPoint": "acme/resize:1.0.0",
+  "workflows": {
+    "acme/resize:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "resize",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "A dispatch is checked the same way, against the start activity of the document it names."
+      },
+      "spec": {
+        "activities": {
+          "call": {
+            "workflow": {
+              "workflow": "acme/resize:1.0.0",
+              "startActivity": "report",
+              "input": {
+                "bytes": 1,
+                "extra": "x"
+              },
+              "call": {}
+            }
+          },
+          "report": {
+            "schema": {
+              "input": {
+                "type": "object",
+                "required": [
+                  "bytes"
+                ],
+                "properties": {
+                  "bytes": {
+                    "type": "integer"
+                  }
+                },
+                "unevaluatedProperties": false
+              }
+            },
+            "timer": {
+              "duration": "1s"
+            }
+          }
+        }
+      }
+    }
+  }
+}

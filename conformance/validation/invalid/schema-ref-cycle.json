@@ -1,0 +1,43 @@
+{
+  "entryPoint": "acme/resize:1.0.0",
+  "workflows": {
+    "acme/resize:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "resize",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "A reference graph that loops has no fixed point to evaluate, so it is a hard stop rather than a depth limit."
+      },
+      "spec": {
+        "activities": {
+          "resize": {
+            "schema": {
+              "input": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "$ref": "#/$defs/Node"
+                  }
+                },
+                "unevaluatedProperties": false,
+                "$defs": {
+                  "Node": {
+                    "$ref": "#/$defs/Wrapper"
+                  },
+                  "Wrapper": {
+                    "$ref": "#/$defs/Node"
+                  }
+                }
+              }
+            },
+            "timer": {
+              "duration": "1s"
+            }
+          }
+        }
+      }
+    }
+  }
+}

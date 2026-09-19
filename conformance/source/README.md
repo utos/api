@@ -32,6 +32,12 @@ One rule per case, named for it: the `type` discriminator, `return` with and wit
 the `error` action with and without fields, a `result` key in source (an unknown field),
 duplicate keys, an unknown activity kind.
 
+The `schema-*` and `spec-contract` cases cover the other half of this mapping: the short form of
+[`../../docs/workflow-schemas.md`](../../docs/workflow-schemas.md) compiling to plain JSON Schema.
+That compilation happens **only here** — a bundle carries the standard form — so a front end that
+gets it wrong produces a workflow that means something else, and nothing downstream can tell.
+
+
 ## Running them
 
 Each implementation of the source format runs this directory as part of its own test suite. The

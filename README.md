@@ -27,12 +27,13 @@ normative — every implementation is expected to conform.
 | [Workflow source format](docs/workflow-source-format.md) | What authors write, and its mapping onto `utos.workflow.v1.Workflow` |
 | [Bundle validation rules](docs/workflow-validation.md) | Every rule a `WorkflowBundle` must satisfy, with stable error codes |
 | [Template expressions](docs/template-expressions.md) | The language of `{{ }}` and `condition` strings — a JavaScript subset — its scope, values, and the guarantees every evaluator makes |
+| [Workflow schemas](docs/workflow-schemas.md) | What a workflow declares about its input, output, emissions and environment — JSON Schema 2020-12, the short authoring form, and where each declaration is checked |
 | [Canonical bundle digest](docs/canonical-bundle-digest.md) | The deterministic byte form behind `WorkflowReference.digest` |
 | [Execution output streams](docs/execution-output-stream.md) | What `emit`, `onEmitted` and `WatchOutput` guarantee: ordering, durability, back-pressure |
 
 Cross-implementation fixtures live in [`conformance/`](conformance/) — bundle validation,
-expression evaluation, and the source-format mapping — and are run as tests by each SDK, so
-conformance is demonstrable rather than assumed.
+expression evaluation, the source-format mapping, and schema checking — and are run as tests by
+each SDK, so conformance is demonstrable rather than assumed.
 
 ## SDKs
 

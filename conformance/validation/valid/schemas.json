@@ -1,0 +1,77 @@
+{
+  "entryPoint": "acme/resize:1.0.0",
+  "workflows": {
+    "acme/resize:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "resize",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "A full contract: a declared environment, a declared result, declared emissions, and an activity that declares what it accepts."
+      },
+      "spec": {
+        "env": {
+          "type": "object",
+          "required": ["RESIZER"],
+          "properties": {
+            "RESIZER": { "type": "string" },
+            "REGION": { "type": "string", "default": "us-east-1" }
+          }
+        },
+        "output": {
+          "type": "object",
+          "required": ["bytes"],
+          "properties": { "bytes": { "type": "integer" } },
+          "unevaluatedProperties": false
+        },
+        "emits": {
+          "type": "object",
+          "required": ["step"],
+          "properties": { "step": { "type": "string" } },
+          "unevaluatedProperties": false
+        },
+        "activities": {
+          "resize": {
+            "schema": {
+              "input": {
+                "type": "object",
+                "required": ["photo"],
+                "properties": {
+                  "photo": { "type": "string", "format": "uri" },
+                  "quality": { "type": "integer", "minimum": 1, "maximum": 100, "default": 80 },
+                  "customer": { "$ref": "#/$defs/Customer" }
+                },
+                "unevaluatedProperties": false,
+                "$defs": {
+                  "Customer": {
+                    "type": "object",
+                    "required": ["email"],
+                    "properties": { "email": { "type": "string", "format": "email" } },
+                    "unevaluatedProperties": false
+                  }
+                }
+              }
+            },
+            "http": { "method": "POST", "url": "{{ env.RESIZER }}/resize" },
+            "onSuccess": [
+              { "emit": { "value": { "step": "resized" }, "transition": { "name": "report", "input": { "bytes": "{{ output.bytes }}" } } } }
+            ]
+          },
+          "report": {
+            "schema": {
+              "input": {
+                "type": "object",
+                "required": ["bytes"],
+                "properties": { "bytes": { "type": "integer" } },
+                "unevaluatedProperties": false
+              }
+            },
+            "timer": { "duration": "1s" },
+            "onSuccess": [ { "result": { "bytes": "{{ input.bytes }}" } } ]
+          }
+        }
+      }
+    }
+  }
+}

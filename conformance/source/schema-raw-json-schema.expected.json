@@ -1,0 +1,33 @@
+{
+  "workflow": {
+    "apiVersion": "utos.io/v1",
+    "kind": "Workflow",
+    "metadata": { "name": "pay", "version": "1.0.0" },
+    "spec": {
+      "activities": {
+        "charge": {
+          "schema": {
+            "input": {
+              "type": "object",
+              "required": ["payment"],
+              "properties": {
+                "payment": {
+                  "oneOf": [
+                    { "$ref": "#/$defs/Card" },
+                    { "$ref": "#/$defs/Invoice" }
+                  ]
+                }
+              },
+              "unevaluatedProperties": false,
+              "$defs": {
+                "Card": { "type": "object", "properties": { "pan": { "type": "string" } } },
+                "Invoice": { "type": "object", "properties": { "ref": { "type": "string" } } }
+              }
+            }
+          },
+          "timer": { "duration": "1s" }
+        }
+      }
+    }
+  }
+}

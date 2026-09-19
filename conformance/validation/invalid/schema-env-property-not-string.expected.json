@@ -1,0 +1,8 @@
+{
+  "issues": [
+    {
+      "code": "UTOS-H011",
+      "path": "workflows[\"acme/resize:1.0.0\"].spec.env.properties[\"PORT\"]"
+    }
+  ]
+}

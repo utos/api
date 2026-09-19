@@ -1,0 +1,20 @@
+# The long form: a `type: object` with a string value at the top of a slot is an
+# object declaration, which is how `open: true` is reached. A field genuinely
+# named `type` carries a mapping, so the two can never be confused.
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: passthrough
+  version: 1.0.0
+spec:
+  activities:
+    accept:
+      type: timer
+      schema:
+        input:
+          type: object
+          open: true
+          properties:
+            orderId: { type: string }
+            type: { type: string }
+      duration: 1s
