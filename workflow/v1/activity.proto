@@ -24,6 +24,22 @@ message WorkflowActivity {
   // If no transitions match or list is empty, the error propagates
   repeated TransitionRule on_failure = 2;
 
+  // What this activity declares about the data crossing into it. Optional —
+  // an absent schema is the empty schema, which anything the wire can carry
+  // satisfies, so every workflow written before schemas existed keeps working.
+  //
+  // Declared here rather than inside a configuration because `input` is taken:
+  // on a workflow.call activity `input` is the *child's* input, and the same
+  // holds for a promise branch and a handler dispatch, so an activity's own
+  // declaration cannot live under that name. Being an activity-level field
+  // outside the oneof is also what keeps the source-format mapping simple —
+  // step 3 of that mapping places every key it does not recognize into the
+  // resolved configuration message, so a `schema` declared anywhere else would
+  // land inside HttpActivityConfig.
+  //
+  // See docs/workflow-schemas.md.
+  ActivitySchema schema = 3;
+
   // Activity-specific configuration — exactly one must be set
   oneof config {
     HttpActivityConfig http = 10;
@@ -31,6 +47,35 @@ message WorkflowActivity {
     PromiseActivityConfig promise = 12;
     TimerActivityConfig timer = 13;
   }
+}
+
+// What an activity declares about the data crossing into it.
+//
+// A message rather than a bare `input` field so that anything else declarative
+// — an activity's own limits, a retry policy — has somewhere to go without
+// another field on WorkflowActivity.
+//
+// Only `input` is declarable. An activity's *output* shape follows from its
+// kind — an http activity's is the parsed JSON body or null, a timer's is its
+// input, a workflow.call's is the callee's declared `spec.output` — so it is
+// derived, and authoring it would be a second place to disagree.
+message ActivitySchema {
+  // A JSON Schema 2020-12 document describing what this activity accepts,
+  // as the value every input boundary that reaches this activity is checked
+  // against: the run input when it is the start activity, a transition's
+  // rendered `input` when it is the target, and a dispatched document's input
+  // when it is that document's start activity.
+  //
+  // This is the ONLY input schema in the system, which is why it is declared
+  // per activity and not once per workflow: a run is scheduled with a start
+  // activity, so a document with three entry points has three input shapes and
+  // a workflow-level `spec.input` would be a fiction.
+  //
+  // Plain JSON Schema by the time it is here. The source format's authoring
+  // sugar — `?` for optional, `min`/`max`, closed by default — is compiled by
+  // the front end, so a bundle carries the standard form and no consumer has to
+  // learn ours. See docs/workflow-schemas.md.
+  google.protobuf.Struct input = 1;
 }
 
 // Defines a conditional transition rule with an action (transition, result, or emit)

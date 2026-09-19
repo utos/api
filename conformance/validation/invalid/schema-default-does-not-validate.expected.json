@@ -1,0 +1,8 @@
+{
+  "issues": [
+    {
+      "code": "UTOS-H008",
+      "path": "workflows[\"acme/resize:1.0.0\"].spec.activities[\"resize\"].schema.input.properties[\"quality\"].default"
+    }
+  ]
+}

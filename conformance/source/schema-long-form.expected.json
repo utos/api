@@ -1,0 +1,24 @@
+{
+  "workflow": {
+    "apiVersion": "utos.io/v1",
+    "kind": "Workflow",
+    "metadata": { "name": "passthrough", "version": "1.0.0" },
+    "spec": {
+      "activities": {
+        "accept": {
+          "schema": {
+            "input": {
+              "type": "object",
+              "required": ["orderId", "type"],
+              "properties": {
+                "orderId": { "type": "string" },
+                "type": { "type": "string" }
+              }
+            }
+          },
+          "timer": { "duration": "1s" }
+        }
+      }
+    }
+  }
+}

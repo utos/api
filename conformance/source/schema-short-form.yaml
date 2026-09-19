@@ -1,0 +1,19 @@
+# The short form of a schema declaration: required by default, `?` for optional,
+# `min`/`max`, closed objects. Compiles to plain JSON Schema in the bundle.
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: resize
+  version: 1.0.0
+spec:
+  activities:
+    resize:
+      type: http
+      schema:
+        input:
+          photo:      { type: string, format: uri }
+          quality?:   { type: integer, min: 1, max: 100, default: 80 }
+          watermark?: { type: string, nullable: true }
+          tags?:      { type: array, items: { type: string } }
+      method: POST
+      url: https://images.example.com/resize

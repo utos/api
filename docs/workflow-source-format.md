@@ -43,6 +43,7 @@ metadata:
 spec:
   dependencies: {}
   activities: {}
+  # env, output and emits are optional — see workflow-schemas.md
 ```
 
 - `apiVersion` — must be `utos.io/v1`. A group/version pair mirroring the proto package major,
@@ -52,6 +53,10 @@ spec:
   `registry` they form the workflow's **canonical identity**,
   `[registry/][namespace/]name:version` — the key under which this workflow appears in a built
   bundle.
+- `spec.env`, `spec.output` and `spec.emits` are the workflow's **contract** — what it requires
+  from its environment, what it returns, and what it emits. All three are optional and all three
+  are schemas; [`workflow-schemas.md`](workflow-schemas.md) defines them and the short form they
+  are written in. What an *activity* accepts is declared on the activity, under `schema:`.
 
 `dependencies` lives under `spec`, not beside it. Everything describing the desired workflow
 belongs in `spec`; a fifth top-level key would break the convention this format adopts.
@@ -122,14 +127,18 @@ canonical identity, so **the daemon never sees the word.**
 `spec.activities` maps an activity name to its definition. No name is reserved: ending a path
 and failing it are actions (`return`, `error`), not activities.
 
-Every activity has a `type` naming its kind, the fields belonging to that kind alongside it, and
-optional `onSuccess` / `onFailure` transition lists.
+Every activity has a `type` naming its kind, the fields belonging to that kind alongside it,
+optional `onSuccess` / `onFailure` transition lists, and an optional `schema` declaring what it
+accepts.
 
 ```yaml
 spec:
   activities:
     fetch-order:
       type: http
+      schema:
+        input:
+          orderId: { type: string }
       method: GET
       url: "{{ env.API_BASE }}/orders/{{ input.orderId }}"
       headers:
@@ -206,7 +215,7 @@ For each entry of `spec.activities`, given `A = utos.workflow.v1.WorkflowActivit
    incomplete. If `type` is absent, unmatched, or incomplete, reject, listing the legal paths
    derived from the descriptor.
 2. Keys that name a field of `A` **outside** any oneof stay at activity level. Today those are
-   `on_success` / `onSuccess` and `on_failure` / `onFailure`.
+   `on_success` / `onSuccess`, `on_failure` / `onFailure`, and `schema`.
 3. Every remaining key — `type` excluded — is placed on the message **along the resolved path**
    that declares a field of that name, nested under the oneof field names that reach it.
 4. In every rule — `onSuccess`, `onFailure`, `onEmitted` — a `return` key is renamed to
@@ -224,7 +233,13 @@ For each entry of `spec.activities`, given `A = utos.workflow.v1.WorkflowActivit
    An `error` with no fields is read the same way and becomes an empty `WorkflowError`,
    `error: {}` — the re-raise: `error:`, `error: ~`, `error: null`, the flow-style
    `{ condition: x, error }`, and the bare list item `- error`. `error` keeps its name on the wire.
-5. The result is parsed as proto3 JSON. Unrecognized keys inside the configuration surface here
+5. `schema.input` is **compiled** from the short form of
+   [`workflow-schemas.md`](workflow-schemas.md) into plain JSON Schema, and so are `spec.env`,
+   `spec.output` and `spec.emits`. These four slots are the only places in this format where the
+   source tree is not structurally the proto tree: a bundle carries standard JSON Schema, so `?`,
+   `min`/`max` and the closed-by-default rule are resolved here and nothing downstream learns
+   them. A `schema` with no `input` is omitted rather than emitted as `{}`.
+6. The result is parsed as proto3 JSON. Unrecognized keys inside the configuration surface here
    as ordinary unknown-field errors, so no separate check is needed.
 
 So the `wait` activity above becomes:
@@ -251,7 +266,8 @@ A mode that carries no fields of its own still appears, as the empty object that
 choice — `type: promise.all` yields `{ "promise": { "branches": [ ... ], "all": {} } }`.
 
 Outside activities, the source tree is structurally identical to the proto, so no other
-restructuring occurs.
+restructuring occurs — apart from the three schema slots of step 5, `spec.env`, `spec.output` and
+`spec.emits`, which are compiled rather than copied.
 
 > Step 3 is only unambiguous because of a constraint on the proto itself: **no field name may be
 > declared at two levels of the same resolvable path.** If `PromiseCountConfig` also declared
@@ -468,8 +484,12 @@ expressions can see. Five context objects are available:
 | `response` | The HTTP response, when the activity was `http` — `status`, `headers` (names lowercased: `response.headers['retry-after']`), `body` (the raw bytes, as a `Buffer`), `bodyText`. Available on **both** paths |
 | `env` | The run's ambient environment, supplied per execution (`utos run --env`) |
 
-`env` is deliberately not declared in the workflow document. It is per-run ambient state, the
-analogue of `docker run -e`, and is always `string → string`.
+`env` is per-run ambient state supplied by whoever starts the run — the analogue of
+`docker run -e` — and is always `string → string`. A document does not *set* it, but it may
+**declare what it requires** in `spec.env`, so that a run missing a variable is refused at schedule
+instead of rendering a URL with a hole in it. That declaration is deliberately not a closed one:
+`env` is shared across a run tree and a sub-workflow inherits its parent's, so a document names
+what it needs and ignores the rest. See [`workflow-schemas.md`](workflow-schemas.md).
 
 `error` is kept separate from `output` rather than replacing it, because a failed activity produced
 no output and overloading one name with the other's meaning would let a condition written for the
@@ -525,6 +545,9 @@ Source-format errors detected during this pass — as distinct from the bundle r
 | `UTOS-S009` | A document is not well-formed, or does not match the workflow schema |
 | ~~`UTOS-S010`~~ | *Unallocated, and not to be reused.* See below |
 | `UTOS-S011` | `self` is used anywhere other than a promise branch's `workflow` |
+| `UTOS-S012` | A schema declares one property twice, once required and once optional — `x` alongside `x?` |
+| `UTOS-S013` | A schema declares a `type` that is not in the type registry |
+| `UTOS-S014` | A schema uses a constraint key that is unknown, or that does not apply to the declared type |
 
 `UTOS-S004` covers every place a document is named — a `workflow.call` or `workflow.spawn`
 activity, a promise branch, and an `onEmitted` rule — because they all resolve the same way.
@@ -542,6 +565,17 @@ carrying that code are in the wild. Allocating it to a real rule later would giv
 two meanings.
 `UTOS-S011` is the exception to that symmetry: only a promise branch may write `self`. See
 [`self`](#self) for why the one place it is load-bearing is also the only place it is safe.
+
+`UTOS-S012`–`UTOS-S014` belong to the **short form** of
+[`workflow-schemas.md`](workflow-schemas.md), which exists only here: a bundle carries plain JSON
+Schema, so these are defects a bundle can no longer express and the rules therefore have to live
+in this range. Everything a bundle *can* still get wrong about a schema — a bad `$ref`, an unknown
+`format`, a `default` that does not validate — is `UTOS-H0##`, checked on the built form like every
+other bundle rule.
+
+`UTOS-S012` catches what a duplicate-key check cannot. `x` and `x?` differ as text, so no parser
+objects, and they mean one property: the document says it is both required and optional and there
+is no reading that is more likely than the other.
 
 ## Worked example
 

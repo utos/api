@@ -1,0 +1,8 @@
+{
+  "issues": [
+    {
+      "code": "UTOS-S012",
+      "path": "spec.activities[\"resize\"].schema.input[\"quality\"]"
+    }
+  ]
+}

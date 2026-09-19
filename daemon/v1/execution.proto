@@ -15,7 +15,14 @@ option csharp_namespace = "Utos.Daemon.V1";
 // ============================================================================
 
 service ExecutionService {
-  // Schedule a new workflow execution
+  // Schedule a new workflow execution.
+  //
+  // Where the start activity declares `schema.input`, or the workflow declares
+  // `spec.env`, `input` and `env` are validated against them before the
+  // execution exists, and declared defaults are filled into what is recorded.
+  // A violation is INVALID_ARGUMENT carrying every failing location, not the
+  // first — see docs/workflow-schemas.md. Nothing is scheduled, so there is no
+  // run to inspect and no partial work to undo.
   rpc ScheduleExecution(ScheduleExecutionRequest) returns (ScheduleExecutionResponse);
 
   // Get detailed execution information
@@ -81,7 +88,12 @@ message ScheduleExecutionRequest {
   // intended even if the store was re-loaded.
   WorkflowReference workflow = 1;
 
-  // Input data passed to the start activity
+  // Input data passed to the start activity.
+  //
+  // Validated against that activity's `schema.input` where it declares one, and
+  // the value RECORDED is the one after declared defaults are filled — so a
+  // replay sees exactly what the activity saw, and an operator reading the
+  // execution back sees the same.
   ExecutionPayload input = 2;
 
   // Name of the activity to start workflow execution from
@@ -93,6 +105,11 @@ message ScheduleExecutionRequest {
   // flags), as opposed to `input`, which reaches only the start activity.
   // Non-secret only — secrets are resolved outside the daemon from a 3rd-party
   // provider, never passed here.
+  //
+  // Validated against `spec.env` where the workflow declares one, and defaults
+  // filled, as `input` is. That declaration is deliberately NOT closed: this
+  // map is inherited by every sub-workflow in the run tree, so a variable a
+  // child does not name is ordinary ambient config rather than a mistake.
   map<string, string> env = 4;
 }
 

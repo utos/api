@@ -1,0 +1,24 @@
+# The workflow-level contract: what it needs from its environment, what it
+# returns, and what it emits. `env` compiles without `unevaluatedProperties`,
+# because a run tree shares one environment and a child names only what it uses.
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: mailbox
+  version: 1.0.0
+spec:
+  env:
+    MAIL_API:
+    REGION?:    { default: us-east-1 }
+    LOG_LEVEL?: { enum: [debug, info, warn] }
+  output:
+    delivered: { type: boolean }
+    count:     { type: integer }
+  emits:
+    messageId: { type: string }
+    subject?:  { type: string, nullable: true }
+  activities:
+    poll:
+      type: http
+      method: GET
+      url: "{{ env.MAIL_API }}/messages"

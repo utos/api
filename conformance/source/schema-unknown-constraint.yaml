@@ -1,0 +1,15 @@
+# `minLength` is a string constraint; on an integer it is not a shorter way of
+# saying something else, it is a mistake.
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: resize
+  version: 1.0.0
+spec:
+  activities:
+    resize:
+      type: timer
+      schema:
+        input:
+          quality: { type: integer, minLength: 2 }
+      duration: 1s

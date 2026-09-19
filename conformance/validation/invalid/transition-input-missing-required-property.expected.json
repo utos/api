@@ -1,0 +1,8 @@
+{
+  "issues": [
+    {
+      "code": "UTOS-H013",
+      "path": "workflows[\"acme/resize:1.0.0\"].spec.activities[\"fetch\"].onSuccess[0].transition.input"
+    }
+  ]
+}

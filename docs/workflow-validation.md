@@ -19,6 +19,13 @@ forms, a condition that carries delimiters — are defined in
 [`template-expressions.md`](template-expressions.md) and are part of this same rule set, reported
 the same way and covered by the same fixtures.
 
+The static schema rules `UTOS-H0##` belong to it on the same terms, and are defined in
+[`workflow-schemas.md`](workflow-schemas.md): a schema in a bundle is well-formed 2020-12, its
+references resolve, its formats are known, its defaults validate, and it is within the structural
+limits. They are structural in the same sense — a schema is inspected, never evaluated against
+data, with the one exception of a `default`, which is checked against the schema that declares it
+so that a default can never be the thing that fails the boundary it was meant to satisfy.
+
 ## Reporting
 
 An implementation reports each violation as a triple:
@@ -295,6 +302,29 @@ replacing them. A `workflow.call` activity is not a dispatch: it is an activity 
 flow that waits for a result, and its failure is that activity's failure. A dispatch has no
 activity of its own.
 
+## `UTOS-H###` — Schemas
+
+Defined in [`workflow-schemas.md`](workflow-schemas.md) and listed there rather than here, because
+the rules and the thing they check are one subject. `UTOS-H0##` is part of this rule set: same
+`code` + `path` reporting, same shared validator, same fixtures under `conformance/validation/`.
+`UTOS-H1##` is not — those are data failures reported as a `WorkflowError` while a run proceeds,
+the same division `template-expressions.md` draws between `UTOS-E0##` and `UTOS-E1##`.
+
+The slots are `spec.activities[…].schema.input`, `spec.output`, `spec.emits` and `spec.env`. All
+four are optional, and an absent one is the empty schema, so every bundle built before schemas
+existed validates unchanged.
+
+Two of those rules — `UTOS-H013` and `UTOS-H014` — are referential in the ordinary sense of this
+document, and are worth knowing about from here: a `transition.input`, or the `input` of anything
+that starts a document — a `workflow.call` or `workflow.spawn` activity, a promise branch, a
+`handle` — must supply every property the target activity's declared input requires, and none it
+does not declare. `workflow-schemas.md` calls that set an **invocation**, rather than reusing
+*dispatch*, precisely because this document holds a `workflow.call` apart from a dispatch and that
+distinction is worth keeping.
+They compare **property sets**, never values. An input transform's keys are always literal — only
+its leaf values may be templates — so this is knowable with certainty at load, which is the test
+every rule in this document has to pass.
+
 ---
 
 ## Struct values
@@ -308,6 +338,11 @@ activity of its own.
 
 Neither is representable in JSON, so either would make the bundle unserializable and its content
 digest uncomputable. `canonical-bundle-digest.md` requires rejecting them at build time.
+`UTOS-V001` applies to every `Struct` in a bundle, the schema-carrying ones included.
+
+The schema slots are the exception to "not otherwise inspected": `ActivitySchema.input`,
+`WorkflowSpec.output`, `WorkflowSpec.emits` and `WorkflowSpec.env` are `Struct`s whose *content*
+is a specified document, and `UTOS-H0##` inspects it.
 
 ## Conformance
 
