@@ -5,7 +5,7 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.18]
+## [0.0.18] - 2026-09-19
 
 ### Added
 - **A workflow can declare what crosses its boundaries** (`docs/workflow-schemas.md`, `workflow/v1/activity.proto`, `workflow/v1/workflow.proto`). Until now a workflow said nothing about what it takes or returns: a caller learned the shape by running it, a bad input failed somewhere in the middle rather than at the door, and a registry had nothing to show. Four new slots, all optional, all **JSON Schema 2020-12** — `ActivitySchema.input` on an activity, and `WorkflowSpec.output`, `.emits` and `.env` on the workflow. An absent slot is the empty schema, so every bundle built before this validates and runs unchanged
