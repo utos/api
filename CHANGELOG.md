@@ -5,6 +5,29 @@ All notable changes to the Utos API specification will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+**Version parity across the Utos repos: the minor is the contract, the patch is
+the spec's own.** A spec change is `0.MINOR.0`; a correction that changes no
+behaviour — a wording fix, a clarified rule — is `0.MINOR.PATCH`, and an
+implementation need not follow one. Every implementation adopts the spec's
+minor, so `0.19.x` in `utos/dapr-daemon`, `utos/cli` or `utos/sdk-dotnet` all
+mean *implements spec 0.19*. A repo with nothing to change simply does not
+release, and its latest `0.19.x` stays current.
+
+## [0.19.0] - 2026-09-20
+
+### Changed
+- **Versions move to `0.MINOR.PATCH`, and every Utos repo joins one version line.** The spec had reached `0.0.18` while `utos/dapr-daemon` was at `0.1.0` and `utos/cli` at `0.3.0`, so no version number said which spec an implementation spoke and a reader had no way to tell but to look. From here the minor is the contract: `0.19.x` anywhere in Utos means *implements spec 0.19*, and the patch belongs to the repo. The number continues the count rather than restarting — eighteen releases so far, so this is the nineteenth — which is also the smallest choice that lets every repo move **forward**, since `utos/cli` was already past `0.1.0` and neither a package registry nor a git tag can be reused. `0.19.1` is now where a documentation correction goes, leaving `0.20.0` to mean a real change to the spec
+- **An implementation is released deliberately, not when the spec is tagged.** `utos/sdk-dotnet` used to regenerate *and publish* on a `spec-released` dispatch, which is how `Utos.Workflow.Validation 0.0.18` reached nuget.org implementing none of spec 0.0.18's rules. That is not a pipeline bug: the conformance fixtures arrive **with** the spec and the implementation follows them, so at the instant a spec is tagged nothing implements it. The dispatch now opens a pull request carrying the regenerated protos and corpus, and a person releases once the repo is genuinely ready. Nothing changes in this repo's own release flow — it still publishes no packages of its own
+
+### Fixed
+- **`UTOS-H006` refuses a `$ref` chain that does not terminate, not every cycle** (`docs/workflow-schemas.md`). The rule said "the reference graph must be acyclic", which would have banned the case `$defs` exists for: a schema that reaches itself *through* `properties` or `items` is an ordinary recursive schema describing a tree, and it terminates on the data because each step consumes a level of the instance. What does not terminate is a chain of **bare** `$ref` indirection — `Node` → `Wrapper` → `Node` — which consumes nothing and has no fixed point to evaluate. Only that is a violation. Found while implementing the rule: the narrow reading is the one that can actually be written
+
+### Changed
+- **Schedule-path failures are carried as `google.rpc.BadRequest`** (`docs/workflow-schemas.md` § What a failure reports). `UTOS-H101` and `UTOS-H102` are reported as `INVALID_ARGUMENT`, and the spec said the failure list was "the status' details" without saying in what form — but `google.rpc.Status.details` is `repeated google.protobuf.Any`, so "a list" is not a thing it can hold. Left unsaid, every implementation would have invented its own message and no client could read another daemon's details. `BadRequest` is the standard type for field-level validation failures, so a generic client renders it without knowing anything about Utos: `field` carries `instanceLocation`, `reason` carries `keyword`, and `description` carries free text including `keywordLocation`. The two contractual fields land in structured slots and `keywordLocation` does not, which is the right way round — it is the one part of the triple the conformance corpus deliberately does not assert
+
+### Recorded, not specified
+- **Reading those details is optional, and a NativeAOT client may prefer not to.** Round-tripping `Any` is not statically analysable, and a .NET client doing it raises an AOT analysis warning that the same client raises none of without it. The status `message` carries the code and every failing location, so a tool can render a complete diagnostic without touching `Any` — which is what the reference CLI does. Measured rather than assumed: the CLI's NativeAOT publish is warning-free today, and the round trip introduces the first one
+
 ## [0.0.18] - 2026-09-19
 
 ### Added
