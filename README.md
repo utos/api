@@ -42,7 +42,9 @@ subscribes to this repo's `vX.Y.Z` release tags). Install them from the native
 package registry for your language — no Buf Schema Registry account or custom
 source required.
 
-- **.NET** — [utos/sdk-dotnet](https://github.com/utos/sdk-dotnet) (`Utos.Workflow`, `Utos.Daemon.Client`, `Utos.Daemon.Server` on nuget.org)
+- **.NET** — [utos/sdk-dotnet](https://github.com/utos/sdk-dotnet) on nuget.org: `Utos.Workflow`
+  (the message types), `Utos.Workflow.Source` (reads the source format), `Utos.Workflow.Validation`
+  (the bundle rules), `Utos.Daemon.Client` and `Utos.Daemon.Server`
 
 ## Related Projects
 
