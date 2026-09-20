@@ -13,7 +13,7 @@ minor, so `0.19.x` in `utos/dapr-daemon`, `utos/cli` or `utos/sdk-dotnet` all
 mean *implements spec 0.19*. A repo with nothing to change simply does not
 release, and its latest `0.19.x` stays current.
 
-## [0.19.0]
+## [0.19.0] - 2026-09-20
 
 ### Changed
 - **Versions move to `0.MINOR.PATCH`, and every Utos repo joins one version line.** The spec had reached `0.0.18` while `utos/dapr-daemon` was at `0.1.0` and `utos/cli` at `0.3.0`, so no version number said which spec an implementation spoke and a reader had no way to tell but to look. From here the minor is the contract: `0.19.x` anywhere in Utos means *implements spec 0.19*, and the patch belongs to the repo. The number continues the count rather than restarting — eighteen releases so far, so this is the nineteenth — which is also the smallest choice that lets every repo move **forward**, since `utos/cli` was already past `0.1.0` and neither a package registry nor a git tag can be reused. `0.19.1` is now where a documentation correction goes, leaving `0.20.0` to mean a real change to the spec
