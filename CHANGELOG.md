@@ -13,6 +13,11 @@ minor, so `0.19.x` in `utos/dapr-daemon`, `utos/cli` or `utos/sdk-dotnet` all
 mean *implements spec 0.19*. A repo with nothing to change simply does not
 release, and its latest `0.19.x` stays current.
 
+## [0.19.1] - 2026-09-20
+
+### Fixed
+- **The SDK package list named three of five** (`README.md`). `Utos.Workflow.Validation` has existed since `0.0.15` and `Utos.Workflow.Source` since `0.19.0`, and neither appeared — so the two packages a tool author most needs to find were the two the list omitted. A reader following it would conclude the bundle rules and the source-format mapping had no published home
+
 ## [0.19.0] - 2026-09-20
 
 ### Changed
