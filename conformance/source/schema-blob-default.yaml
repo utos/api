@@ -1,0 +1,14 @@
+# A bundle contains no blobs, so a `default` could never name one.
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: archive
+  version: 1.0.0
+spec:
+  activities:
+    store:
+      type: timer
+      schema:
+        input:
+          photo?: { type: blob, default: "iVBORw0KGgo=" }
+      duration: 1s

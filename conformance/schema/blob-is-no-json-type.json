@@ -1,0 +1,68 @@
+{
+  "schema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "type": "object"
+      },
+      "b": {
+        "type": "string"
+      },
+      "c": {},
+      "d": {
+        "minLength": 100,
+        "properties": {
+          "x": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "unevaluatedProperties": false
+  },
+  "valueWire": {
+    "fields": {
+      "a": {
+        "blobValue": {
+          "data": "iVBORw0KGgo=",
+          "size": "8",
+          "mediaType": "image/png"
+        }
+      },
+      "b": {
+        "blobValue": {
+          "data": "iVBORw0KGgo=",
+          "size": "8",
+          "mediaType": "image/png"
+        }
+      },
+      "c": {
+        "blobValue": {
+          "data": "iVBORw0KGgo=",
+          "size": "8",
+          "mediaType": "image/png"
+        }
+      },
+      "d": {
+        "blobValue": {
+          "data": "iVBORw0KGgo=",
+          "size": "8",
+          "mediaType": "image/png"
+        }
+      }
+    }
+  },
+  "expect": {
+    "valid": false,
+    "errors": [
+      {
+        "instanceLocation": "/a",
+        "keyword": "type"
+      },
+      {
+        "instanceLocation": "/b",
+        "keyword": "type"
+      }
+    ]
+  }
+}

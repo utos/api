@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "workflow/v1/common.proto";
+import "workflow/v1/value.proto";
 
 package utos.daemon.v1;
 
@@ -55,10 +55,14 @@ message WorkflowReference {
 // Shared Execution Types
 // ============================================================================
 
+// A run's input: an object at the top level, whose values are anything a
+// WorkflowValue can hold, blobs included. See docs/workflow-values.md.
 message ExecutionPayload {
-  // Input data supporting JSON-like recursive structures
-  // Values can be strings, numbers, booleans, arrays, or nested objects
-  map<string, google.protobuf.Value> data = 1;
+  // Formerly map<string, google.protobuf.Value>, which could not carry a blob
+  // without reserving a key inside the data.
+  reserved 1;
+
+  map<string, utos.workflow.v1.WorkflowValue> data = 2;
 }
 
 message ExecutionSummary {

@@ -1,0 +1,31 @@
+{
+  "schema": {
+    "type": "object",
+    "properties": {
+      "doc": {
+        "$ref": "utos:file"
+      }
+    },
+    "unevaluatedProperties": false
+  },
+  "valueWire": {
+    "fields": {
+      "doc": {
+        "blobValue": {
+          "data": "iVBORw0KGgo=",
+          "size": "8",
+          "mediaType": "image/png"
+        }
+      }
+    }
+  },
+  "expect": {
+    "valid": false,
+    "errors": [
+      {
+        "instanceLocation": "/doc",
+        "keyword": "type"
+      }
+    ]
+  }
+}

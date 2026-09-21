@@ -211,6 +211,8 @@ input:
 | `minItems`, `maxItems`, `uniqueItems` | `array` | unchanged |
 | `properties` | `object` | `properties` — a nested field map |
 | `open` | `object` | `true` omits `unevaluatedProperties: false` |
+| `mediaType` | `blob`, `file` | unchanged — a pattern, or a list of them |
+| `maxSize` | `blob`, `file` | `maxSize`, in bytes — a unit is converted (§ Published types) |
 
 `min`/`max` are shortened because they are the two that appear on nearly every numeric field; the
 rest keep their JSON Schema names so that what an author learns here transfers. A key outside this
@@ -280,6 +282,12 @@ spec owns both, and adding a type is a spec release.
 | `object` | object | object | Frozen in scope |
 | `array` | array | array | Frozen in scope |
 | `null` | null | `null` | Distinct from absent |
+| `blob` | a blob (`WorkflowValue.blob_value`) | `Blob` | Bytes with a media type; a `File` is a `blob` too. Published type `utos:blob` |
+| `file` | a blob with a `name` | `File` | A `blob` that has a name. Published type `utos:file` |
+
+The first seven are JSON's own and compile to JSON Schema's `type` keyword. `blob` and `file` are
+not JSON types: they compile to a `$ref` to a published type (§ Published types), and they are what
+[`binary-data.md`](binary-data.md) defines.
 
 **`number` and `integer` are two declared types and one runtime type.** Zod makes the same split —
 `z.number()` and `z.int()` are separate schemas over one JavaScript `number` — and it is the right
@@ -296,9 +304,10 @@ same bound `UTOS-E104` draws on a value entering an expression, so a declared `i
 readable one are the same set. Such ids travel as strings.
 
 **Expression-only types are not declarable, because they cannot be values.** `Buffer`, `Date`,
-`URL`, `URLSearchParams`, `Set` and `Map` exist inside an expression and must be turned back into
-data before the value leaves (`UTOS-E103`). A schema therefore never mentions them, and there is no
-declared type whose values an expression could not produce.
+`URL`, `URLSearchParams`, `Set`, `Map` and a promise exist inside an expression and must be turned
+into a value before one leaves it (`UTOS-E103`). A schema therefore never mentions them, and there
+is no declared type whose values an expression could not produce. `Blob` and `File` crossed that
+line in 0.20.0 by becoming values — which is exactly what made them declarable.
 
 **Each type defines four things** — its authoring spelling, its JSON Schema form, its wire form and
 its runtime type in an expression — and the conformance corpus carries a case for each.
@@ -314,12 +323,108 @@ a compiled schema is JSON Schema's own keyword, whose legal values the meta-sche
 `utos:<name>` and never fetched: an implementation ships them, so a schema is evaluated without
 I/O and a registry outage cannot stop a workflow loading.
 
-**The registry is empty in this version.** The mechanism is specified now because the first two
-entries — `blob` and `file` — arrive with binary data, and a type whose *values* do not yet exist
-would be a declaration no run could ever satisfy. Until then every `$ref` names a JSON Pointer into
-the same schema's `$defs`, and a `utos:` name is `UTOS-H005`.
+| Name | Accepts |
+|---|---|
+| `utos:blob` | A blob, with or without a name |
+| `utos:file` | A blob with a name — a `File` |
 
-Sibling keywords beside a `$ref` are legal in 2020-12 and are how a published type will carry a
+A `utos:` name outside this table is `UTOS-H005`. The registry grows by spec release.
+
+A published type is **not a JSON Schema document** an implementation could write down and evaluate
+with a stock validator. A blob is not JSON (§ Blobs in a schema), and no set of JSON keywords could
+tell one from a map shaped like a handle — which is the confusion
+[`workflow-values.md`](workflow-values.md) exists to rule out. An implementation evaluates each
+built-in natively, as a check of the value's kind.
+
+#### Blobs in a schema
+
+JSON Schema is defined over the JSON data model, and a value may now hold a node that is not in it.
+**A blob is an instance of no JSON type**, and every keyword meets it accordingly:
+
+- **`type` fails** for every type name — `{ "type": "object" }` does not accept a blob, and nor does
+  `"string"`.
+- **`const` and `enum` never match** a blob, since no JSON value equals one.
+- **Every other JSON Schema keyword ignores it**, as each already ignores instances outside the
+  types it applies to: `properties` applies only to objects, `minLength` only to strings, and none
+  of them to a blob. So the empty schema, and `true`, accept a blob, as they accept anything.
+- **`utos:blob` accepts exactly the blobs; `utos:file`, exactly the blobs with a name.** A failure
+  of either is reported with keyword `type`, at a `keywordLocation` through the `$ref`, because it
+  *is* a type check — the only kind a built-in makes.
+
+The result is that an undeclared blob is accepted wherever an undeclared anything is, and a
+declaration that names a JSON type refuses one. A workflow that took `photo: { type: string }` and
+is now handed a blob fails at the door with `type` at `/photo`, which is the message it deserves.
+
+#### `mediaType` and `maxSize`
+
+Two keywords of this spec's own, beside the `$ref`, constrain a blob. 2020-12 permits keywords
+beside a `$ref` and treats unknown ones as annotations, which would make these check nothing; here
+they are **assertions**, the same position § The dialect takes on `format`.
+
+| Keyword | Value | Asserts |
+|---|---|---|
+| `mediaType` | a string, or a non-empty array of strings | The blob's media type matches one of them |
+| `maxSize` | a non-negative integer, in bytes | The blob's `size` is at most this |
+
+A **media type pattern** is `type/subtype` or `type/*`, compared case-insensitively against the
+type and subtype of the blob's media type, **ignoring its parameters**: `text/plain` accepts
+`text/plain;charset=utf-8`, and `image/*` accepts `image/png`. A blob whose media type is empty
+matches no pattern. `*/*` is not a pattern — to accept any media type, omit the keyword.
+
+Both keywords apply **only to blobs**, like every type-specific keyword: beside a `$ref` to
+`utos:blob` or `utos:file`, in a `$defs` entry reached from one, or anywhere else, where they
+ignore instances that are not blobs. A malformed value — a pattern that is not one, an empty list,
+a negative or fractional size — is `UTOS-H015`.
+
+**Both judge metadata, never bytes.** `size` and the media type travel on the value, so a check
+costs nothing whether a blob is ten bytes or ten gigabytes, and reads nothing from storage. The
+media type is what whoever made the blob declared — a server's `content-type`, a client's upload —
+and checking it is checking a claim; a document that needs to know a file is really a PNG reads its
+first bytes. A failure is reported with keyword `mediaType` or `maxSize`.
+
+#### Authoring
+
+In the short form `blob` and `file` are types like any other:
+
+```yaml
+schema:
+  input:
+    photo:      { type: blob, mediaType: "image/*", maxSize: 10MiB }
+    contract:   { type: file, mediaType: [application/pdf, image/tiff] }
+    thumbnail?: { type: blob, nullable: true }
+```
+
+```json
+{
+  "type": "object",
+  "required": ["contract", "photo"],
+  "properties": {
+    "photo": { "$ref": "utos:blob", "mediaType": "image/*", "maxSize": 10485760 },
+    "contract": { "$ref": "utos:file", "mediaType": ["application/pdf", "image/tiff"] },
+    "thumbnail": { "anyOf": [ { "$ref": "utos:blob" }, { "type": "null" } ] }
+  },
+  "unevaluatedProperties": false
+}
+```
+
+- **`maxSize` takes a unit in the short form** and is always bytes in a bundle. A number is bytes;
+  a string is a number followed by a unit, with or without a space between: `B`; `KB`, `MB`, `GB`,
+  `TB` (powers of 1000); `KiB`, `MiB`, `GiB`, `TiB` (powers of 1024). Units are case-sensitive,
+  since `Mb` and `MB` mean different things elsewhere and guessing between them is how a limit ends
+  up eight times what was meant. A fractional number is accepted when the product is a whole number
+  of bytes (`1.5KiB` is `1536`) and refused when it is not (`1.3B`). Anything else is `UTOS-S015`.
+- **A `mediaType` list keeps its order**, and a single-element list stays a list, so that a document
+  compiles to the same bytes whichever way it was written.
+- **`nullable` wraps the reference** in an `anyOf` with `{ "type": "null" }`, as it does for any
+  `$ref`, and the blob constraints stay inside the branch that is the reference. Placed beside the
+  `anyOf` they would still hold — they ignore `null` — but the compiled form should say what it
+  means.
+- **`default`, `const` and `enum` do not apply to `blob` or `file`** (`UTOS-S014`): a bundle
+  contains no blobs, so none of them could ever name one. A bundle written by other means can still
+  say it: a `default` there fails `UTOS-H008`, since it cannot validate, and a `const` or `enum` is
+  legal JSON Schema that accepts no blob at all.
+
+Sibling keywords beside a `$ref` are legal in 2020-12 and are how a published type carries a
 constraint, which is the other reason closed means `unevaluatedProperties`.
 
 ### Formats
@@ -522,6 +627,7 @@ implementation applies them wherever it applies that document, and never assumes
 | `UTOS-H012` | A schema must be within the limits of § Limits |
 | `UTOS-H013` | A `transition.input` must supply every property the target activity's declared input requires, and none it does not declare |
 | `UTOS-H014` | An invocation's `input` must do the same against the invoked start activity's declared input |
+| `UTOS-H015` | A `mediaType` must be a media type pattern or a non-empty array of them, and a `maxSize` a non-negative integer |
 
 `UTOS-H001` catches a value that is not a schema at all — a string, a number, an array — where one
 belongs. A `Struct` will carry any of those happily, so `properties: { x: "string" }` is a thing a
@@ -673,9 +779,11 @@ it decides whether defaults are filled, since `input` and `env` fill and the oth
 ```
 
 `filled` is the value after defaults, and is present only where the case is at a filling boundary
-— `input` or `env`; a case with no `filled` asserts the value is unchanged. `errors` is compared as an unordered set on
-`instanceLocation` and `keyword` — `keywordLocation` is not asserted, because more than one schema
-location can legitimately produce the same failure. Message text is never part of a case.
+— `input` or `env`; a case with no `filled` asserts the value is unchanged. `errors` is compared as
+an unordered set on `instanceLocation` and `keyword` — `keywordLocation` is not asserted, because
+more than one schema location can legitimately produce the same failure. Message text is never part
+of a case. A value holding a blob is written in the wire form, as `valueWire` (protobuf JSON of a
+`WorkflowMap`), since plain JSON has no way to hold one.
 
 ## Implementation notes
 
@@ -683,7 +791,10 @@ Non-normative.
 
 **Who validates what.** The **daemon** validates *data* against a workflow's schemas — run input,
 an invocation's input, a result, an emitted value — and has no ahead-of-time compilation constraint,
-so any 2020-12 evaluator will do. The **shared validator** checks the *schema document* at load:
+so any 2020-12 evaluator will do — provided it can be taught § Blobs in a schema: a node outside
+the JSON data model, two built-in references, and two assertion keywords. Evaluators with custom
+keyword and custom reference hooks can do this; one that only takes JSON text cannot, since there is
+no JSON a blob could be rendered to without becoming a map. The **shared validator** checks the *schema document* at load:
 well-formed against the meta-schema, references known and acyclic, formats known, limits kept. One
 of its rules — `UTOS-H008`, a default validating against its own schema — needs an evaluator too,
 against a schema that is not known until a bundle is read; implementations that publish a
@@ -711,9 +822,6 @@ is not always certain.
 
 Deliberately absent from this version, each waiting on something named:
 
-- **`blob` and `file` as published types**, with `mediaType` and `maxSize` constraints. They are
-  the first two entries of the registry and arrive with binary data, when values of those types
-  exist to declare.
 - **`spec.errors`** — the codes a workflow can fail with, as `[{ code, description }]`, with the
   validator checking that an `error` action's code is declared and that a caller comparing
   `error.code === 'X'` names one the callee declares. The last piece of a workflow's contract, and

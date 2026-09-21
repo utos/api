@@ -178,12 +178,13 @@ message TransitionTarget {
 // and {{ env.x }} to reference the run's ambient environment (e.g. a base URL).
 //
 // An http activity surfaces its result twice, on different axes: `output` is
-// the parsed JSON body, in common with every other activity kind, while
-// `response` carries the transport facts — status, headers (names lowercased),
-// body (the raw bytes, as a Buffer) and bodyText — that have no analogue on the
-// other kinds. `response` is available on the failure
-// path as well, which is what lets an on_failure rule tell a 429 from a 401
-// without an error-code taxonomy. A non-2xx is a failure.
+// the parsed JSON body when the response declared a JSON media type, and null
+// otherwise, in common with every other activity kind, while `response`
+// carries the transport facts — status, headers (names lowercased) and body, a
+// Blob holding the bytes as received — that have no analogue on the other
+// kinds. `response` is available on the failure path as well, which is what
+// lets an on_failure rule tell a 429 from a 401 without an error-code taxonomy.
+// A non-2xx is a failure. See docs/binary-data.md § The HTTP activity.
 message HttpActivityConfig {
   // HTTP method (e.g., "GET", "POST", "PUT", "DELETE")
   string method = 1;
@@ -200,7 +201,10 @@ message HttpActivityConfig {
   // its own credential.
   map<string, string> headers = 3;
 
-  // Request body (ignored for GET/DELETE) — supports {{ input.x }} templates
+  // Request body (ignored for GET/DELETE) — supports {{ input.x }} templates.
+  // Rendered as text, except that a whole-field template evaluating to a Blob
+  // sends that blob's bytes, and its media type when no `content-type` header
+  // is declared.
   optional string body = 4;
 }
 

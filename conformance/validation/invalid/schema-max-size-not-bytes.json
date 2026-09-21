@@ -1,0 +1,33 @@
+{
+  "entryPoint": "acme/resize:1.0.0",
+  "workflows": {
+    "acme/resize:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "resize",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "maxSize is bytes in a bundle. A unit is a feature of the short form, converted before the bundle is built."
+      },
+      "spec": {
+        "activities": {
+          "resize": {
+            "schema": {
+              "input": {
+                "type": "object",
+                "properties": {
+                  "photo": { "$ref": "utos:blob", "maxSize": "10MiB" }
+                },
+                "unevaluatedProperties": false
+              }
+            },
+            "timer": {
+              "duration": "1s"
+            }
+          }
+        }
+      }
+    }
+  }
+}

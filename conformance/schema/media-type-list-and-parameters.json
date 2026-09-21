@@ -1,0 +1,45 @@
+{
+  "schema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "$ref": "utos:blob",
+        "mediaType": [
+          "application/json",
+          "Text/Plain"
+        ]
+      },
+      "b": {
+        "$ref": "utos:blob",
+        "mediaType": "text/plain"
+      }
+    },
+    "unevaluatedProperties": false
+  },
+  "valueWire": {
+    "fields": {
+      "a": {
+        "blobValue": {
+          "data": "eA==",
+          "size": "1",
+          "mediaType": "text/plain;charset=utf-8"
+        }
+      },
+      "b": {
+        "blobValue": {
+          "data": "eA==",
+          "size": "1"
+        }
+      }
+    }
+  },
+  "expect": {
+    "valid": false,
+    "errors": [
+      {
+        "instanceLocation": "/b",
+        "keyword": "mediaType"
+      }
+    ]
+  }
+}

@@ -1,10 +1,10 @@
 syntax = "proto3";
 
 import "daemon/v1/shared.proto";
-import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "workflow/v1/bundle.proto";
 import "workflow/v1/common.proto";
+import "workflow/v1/value.proto";
 
 package utos.daemon.v1;
 
@@ -23,6 +23,12 @@ service ExecutionService {
   // A violation is INVALID_ARGUMENT carrying every failing location, not the
   // first — see docs/workflow-schemas.md. Nothing is scheduled, so there is no
   // run to inspect and no partial work to undo.
+  //
+  // Every blob in `input` is checked first: a stored one must exist, be READY
+  // and be durable; an inline one must be well-formed and within the daemon's
+  // inline threshold. Each accepted stored blob is attached to the new run
+  // tree, which may then read it. A failure is INVALID_ARGUMENT with
+  // UTOS-F104 — see docs/binary-data.md § Into a run.
   rpc ScheduleExecution(ScheduleExecutionRequest) returns (ScheduleExecutionResponse);
 
   // Get detailed execution information
@@ -72,6 +78,9 @@ service ExecutionService {
   // Unknown execution_id returns NOT_FOUND. Does not affect any sub-workflow
   // executions this run started with `workflow.spawn` — those are independent
   // top-level executions with their own records.
+  //
+  // The run tree's intermediate blobs go with it. Durable blobs stay unless
+  // `delete_blobs` is set — see docs/binary-data.md § Retention.
   rpc DeleteExecution(DeleteExecutionRequest) returns (DeleteExecutionResponse);
 }
 
@@ -132,6 +141,8 @@ message GetExecutionResponse {
   reserved "id", "status", "workflow", "created_at", "scheduled_at",
     "started_at", "completed_at", "failed_at", "error",
     "workflow_version", "workflow_namespace", "workflow_registry", "error_message";
+  // Former google.protobuf.Struct `result`, now a WorkflowMap at 19.
+  reserved 18;
 
   // Summary view: identity, status, timing, and error for this execution.
   ExecutionSummary summary = 17;
@@ -155,7 +166,7 @@ message GetExecutionResponse {
   //
   // This is the terminal entry only. Any values the execution emitted along the
   // way are read with WatchOutput, which is the whole stream.
-  optional google.protobuf.Struct result = 18;
+  optional utos.workflow.v1.WorkflowMap result = 19;
 }
 
 message WatchOutputRequest {
@@ -177,6 +188,9 @@ message WatchOutputRequest {
 
 // One entry in an execution's output stream.
 message WatchOutputResponse {
+  // Former google.protobuf.Struct `value` and `result`, now WorkflowMaps at 6 and 7.
+  reserved 3, 4;
+
   // Position in this execution's stream. Dense and monotonic from 0. Doubles as
   // the cursor for WatchOutputRequest.after.
   int64 sequence = 1;
@@ -188,12 +202,12 @@ message WatchOutputResponse {
   // exactly one terminal entry — `result` or `error` — which is always last.
   oneof entry {
     // A value the workflow emitted with a TransitionRule `emit` action.
-    google.protobuf.Struct value = 3;
+    utos.workflow.v1.WorkflowMap value = 6;
 
     // Terminal: the workflow returned this via a `result` action. Absent
-    // structure (a path that ended without returning) is an empty Struct, not a
+    // structure (a path that ended without returning) is an empty map, not a
     // missing entry — the stream always terminates.
-    google.protobuf.Struct result = 4;
+    utos.workflow.v1.WorkflowMap result = 7;
 
     // Terminal: the workflow failed or was cancelled.
     utos.workflow.v1.WorkflowError error = 5;
@@ -231,6 +245,12 @@ message CancelExecutionResponse {
 message DeleteExecutionRequest {
   // Unique execution identifier
   string execution_id = 1;
+
+  // Also delete the durable blobs this run tree produced — what it returned or
+  // emitted. Never a client's upload, which may have started other runs and is
+  // deleted with BlobService.DeleteBlob. A blob a non-terminal execution can
+  // still reference is skipped, not deleted.
+  bool delete_blobs = 2;
 }
 
 message DeleteExecutionResponse {

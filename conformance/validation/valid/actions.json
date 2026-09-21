@@ -28,7 +28,7 @@
                 "error": {
                   "code": "ORDER_FETCH_FAILED",
                   "message": "{{ error.message }}",
-                  "details": { "status": "{{ response.status }}", "body": "{{ response.body.toString('base64') }}" }
+                  "details": { "status": "{{ response.status }}", "body": "{{ (await response.body.bytes()).toString('base64') }}" }
                 }
               }
             ]

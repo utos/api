@@ -54,7 +54,6 @@ cond expression-array-hole              "[1, , 3].length === 3"                 
 cond expression-getter                  "({ get x() { return 1 } }).x === 1"                 UTOS-E020
 cond expression-proto-key               "({ __proto__: null }) !== null"                      UTOS-E021
 cond expression-this                    "this === undefined"                                  UTOS-E030
-cond expression-async                   "(async () => 1)() !== null"                          UTOS-E031
 cond expression-import                  "import('x') !== null"                               UTOS-E032
 cond expression-comma                   "(1, true)"                                           UTOS-E035
 cond expression-new                     "new Proxy({}, {}) !== null"                          UTOS-E040
@@ -63,13 +62,16 @@ cond expression-forbidden-call          "Array(3).length === 3"                 
 cond expression-eval                    "eval('true')"                                        UTOS-E041
 cond expression-function-constructor    "Function('return true')()"                           UTOS-E041
 cond expression-unary-operator          "void 0 === undefined"                                UTOS-E050
-cond expression-instanceof              "(input instanceof Object) === true"                  UTOS-E051
 cond expression-syntax-error            "output.status ==="                                   UTOS-E060
 cond expression-delimited-condition     "{{ output.status === 'ready' }}"                    UTOS-E061
 cond expression-unknown-node            "String.raw\`x\`.length > 0"                          UTOS-E099
 url  expression-unclosed                "https://api.example.com/orders/{{ input.id"         UTOS-E062
 leaf expression-no-value                "{{ const a = 1; }}"                                  UTOS-E063
 leaf expression-interpolation-statement "id-{{ const a = 1; a }}-x"                          UTOS-E062
+
+# 0.20.0: a retired member of a scope name is refused at load, by every spelling a parser can see.
+cond expression-retired-member          "response.bodyText === ''"                        UTOS-E070
+cond expression-retired-member-pattern  "(({ bodyText }) => bodyText === '')(response)"    UTOS-E070
 
 # 0.0.16 actions: the former keywords are ordinary unresolved names, and an error needs a code.
 bundle "https://api.example.com/hello" '[ { "transition": { "name": "end" } } ]' > transition-to-keyword-end.json

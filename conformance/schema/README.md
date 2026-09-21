@@ -26,7 +26,8 @@ different times, and an implementation may well have only one of them.
 |---|---|
 | `boundary` | `input`, `env`, `output` or `emits` — which declaration is being applied. Optional; `input` when absent. It decides whether defaults are filled: `input` and `env` fill, `output` and `emits` never do |
 | `schema` | A **compiled** JSON Schema 2020-12 document — the built form, as it appears in a bundle, not the source format's short form. Compilation of the short form is covered by [`../source/`](../source/) |
-| `value` | The value being checked |
+| `value` | The value being checked, as plain JSON — read by the JSON → `WorkflowValue` conversion, so it never holds a blob and a `$blob` key in it is an ordinary key |
+| `valueWire` | In place of `value`, for a value that holds a blob: a `utos.workflow.v1.WorkflowMap` in protobuf JSON, the wire form (see [`../evaluation/`](../evaluation/README.md#blobs)). No `store` is needed — a schema judges a blob's metadata and never reads its bytes |
 | `expect.valid` | Whether the value satisfies the schema |
 | `expect.filled` | The value after declared defaults are filled. Present only on a valid case at a filling boundary; absent means the value must be unchanged |
 | `expect.errors` | On an invalid case, the failures that must be reported |

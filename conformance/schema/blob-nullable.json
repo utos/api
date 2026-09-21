@@ -1,0 +1,45 @@
+{
+  "schema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "anyOf": [
+          {
+            "$ref": "utos:blob"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "b": {
+        "anyOf": [
+          {
+            "$ref": "utos:blob"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "unevaluatedProperties": false
+  },
+  "valueWire": {
+    "fields": {
+      "a": {
+        "nullValue": null
+      },
+      "b": {
+        "blobValue": {
+          "data": "iVBORw0KGgo=",
+          "size": "8",
+          "mediaType": "image/png"
+        }
+      }
+    }
+  },
+  "expect": {
+    "valid": true
+  }
+}

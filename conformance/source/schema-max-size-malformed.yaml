@@ -1,0 +1,15 @@
+# `Mb` is not `MB`: units are case-sensitive, because guessing between megabits and megabytes is
+# how a limit ends up eight times what was meant.
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: archive
+  version: 1.0.0
+spec:
+  activities:
+    store:
+      type: timer
+      schema:
+        input:
+          photo: { type: blob, maxSize: 10Mb }
+      duration: 1s

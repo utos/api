@@ -1,0 +1,401 @@
+syntax = "proto3";
+
+import "daemon/v1/shared.proto";
+import "google/protobuf/timestamp.proto";
+import "workflow/v1/value.proto";
+
+package utos.daemon.v1;
+
+option csharp_namespace = "Utos.Daemon.V1";
+
+// ============================================================================
+// Blob Service
+// ============================================================================
+//
+// Metadata and signed locations for the blobs a daemon stores. See
+// docs/binary-data.md.
+//
+// Every call is unary and no call carries bytes. A client uploads to and
+// downloads from the store itself, at a short-lived location the daemon asks
+// the store to sign; the daemon is in the data path only for I/O a workflow
+// asked for.
+//
+// A daemon with no store configured answers every call FAILED_PRECONDITION.
+
+service BlobService {
+  // Begin an upload. Records a PENDING blob and answers with how to upload it:
+  // one signed location for the whole body, or a multipart layout whose parts
+  // are signed with SignUploadParts. The daemon chooses; a client follows. The
+  // blob cannot be used until CompleteBlob.
+  rpc CreateBlob(CreateBlobRequest) returns (CreateBlobResponse);
+
+  // Sign locations for parts of a multipart upload — any parts, any number of
+  // times. Signing on demand is what lets an upload of thousands of parts
+  // proceed in batches, outlive any one signature's expiry, and resume after
+  // the client restarts. FAILED_PRECONDITION unless the blob is a PENDING
+  // multipart upload; INVALID_ARGUMENT for a part number outside
+  // 1..part_count.
+  rpc SignUploadParts(SignUploadPartsRequest) returns (SignUploadPartsResponse);
+
+  // Finish an upload. The daemon asks the store what was written — assembling
+  // the parts of a multipart upload itself, so a client never tracks the
+  // store's part receipts — records the real size, and marks the blob READY.
+  // NOT_FOUND for an unknown id; FAILED_PRECONDITION when nothing was
+  // uploaded, when a part is missing (GetBlob names the parts received), or
+  // when the upload expired. Idempotent on a READY blob.
+  rpc CompleteBlob(CompleteBlobRequest) returns (CompleteBlobResponse);
+
+  // A blob's metadata, and on request a signed location to download it from.
+  // A deleted blob is still answered, as DELETED, so that a handle in an old
+  // result reads as removed rather than as corrupt; an id never issued is
+  // NOT_FOUND.
+  rpc GetBlob(GetBlobRequest) returns (GetBlobResponse);
+
+  // Blobs, newest first, filtered.
+  rpc ListBlobs(ListBlobsRequest) returns (ListBlobsResponse);
+
+  // What happened to a blob: who uploaded or produced it, which workflows
+  // attached and read it, when it was downloaded.
+  rpc GetBlobHistory(GetBlobHistoryRequest) returns (GetBlobHistoryResponse);
+
+  // Delete a blob's bytes. Refused with FAILED_PRECONDITION while any
+  // execution that is not terminal can reference it — a run failing for a
+  // reason its author cannot see is worse than a refusal. Idempotent on a
+  // DELETED blob.
+  rpc DeleteBlob(DeleteBlobRequest) returns (DeleteBlobResponse);
+
+  // Delete every blob matching a filter, skipping those a non-terminal
+  // execution can reference.
+  rpc PruneBlobs(PruneBlobsRequest) returns (PruneBlobsResponse);
+}
+
+// ============================================================================
+// Shared Blob Types
+// ============================================================================
+
+// A short-lived, pre-authorised request against the store. The client performs
+// it as given — method, URL and every header verbatim — and never sends the
+// daemon's credentials anywhere.
+message SignedLocation {
+  // Absolute URL, including whatever signature the store requires.
+  string url = 1;
+
+  // "PUT" for an upload, "GET" for a download.
+  string method = 2;
+
+  // Headers the request must carry exactly, e.g. the content type an upload
+  // was signed for. A client may add `range` to a download.
+  map<string, string> headers = 3;
+
+  // After this the location is refused by the store.
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+enum BlobState {
+  BLOB_STATE_UNSPECIFIED = 0;
+
+  // Created, not completed. Not usable in a run.
+  BLOB_STATE_PENDING = 1;
+
+  // The bytes are stored and the blob is usable.
+  BLOB_STATE_READY = 2;
+
+  // The bytes are gone; the record remains so that a handle reads as removed.
+  BLOB_STATE_DELETED = 3;
+}
+
+// Why a blob is kept. See docs/binary-data.md § Retention.
+enum BlobRetention {
+  BLOB_RETENTION_UNSPECIFIED = 0;
+
+  // Somebody asked for it — a client's upload, or a blob that reached a root
+  // execution's output stream. Removed only by DeleteBlob, PruneBlobs, or
+  // DeleteExecution with `delete_blobs`.
+  BLOB_RETENTION_DURABLE = 1;
+
+  // A run made it and nothing carried it out of the run. Removed by the daemon
+  // once no run it belongs to can reach it.
+  BLOB_RETENTION_INTERMEDIATE = 2;
+}
+
+// How a blob came to exist. Metadata, not a class: an upload and a returned
+// result are both durable and removed the same way.
+enum BlobOrigin {
+  BLOB_ORIGIN_UNSPECIFIED = 0;
+
+  // A client created it with CreateBlob.
+  BLOB_ORIGIN_UPLOADED = 1;
+
+  // An execution wrote it — a response body, or a blob an expression built.
+  BLOB_ORIGIN_PRODUCED = 2;
+}
+
+// Where a produced blob came from. Plain data rather than a live reference: a
+// durable blob outlives the execution that made it, and deleting that
+// execution must not erase why the blob exists.
+message BlobProducer {
+  // The execution that wrote it, and the root of that execution's run tree.
+  string execution_id = 1;
+  string root_execution_id = 2;
+
+  // The workflow, with the digest of the exact bundle that ran.
+  WorkflowReference workflow = 3;
+
+  // The activity that wrote it.
+  string activity = 4;
+}
+
+// What the daemon records about a stored blob.
+message BlobInfo {
+  string id = 1;
+  BlobState state = 2;
+  BlobRetention retention = 3;
+  BlobOrigin origin = 4;
+
+  // Length of the stored object in bytes. For a PENDING blob, the size
+  // given at creation, if any.
+  int64 size = 5;
+
+  string media_type = 6;
+  optional string name = 7;
+  optional google.protobuf.Timestamp last_modified = 8;
+
+  // "sha256:<hex>" of the stored bytes — present only when the daemon hashed
+  // them itself while writing them. Never a value a client supplied, and never
+  // the store's entity tag, which is not a content hash for multipart objects.
+  optional string digest = 9;
+
+  // Set when `origin` is PRODUCED.
+  optional BlobProducer producer = 10;
+
+  google.protobuf.Timestamp created_at = 11;
+  optional google.protobuf.Timestamp completed_at = 12;
+  optional google.protobuf.Timestamp deleted_at = 13;
+
+  // The newest event in the blob's history.
+  optional google.protobuf.Timestamp last_used_at = 14;
+
+  // Distinct (root execution, workflow) pairs that attached or read the blob —
+  // the number of history rows with those events.
+  int64 usage_count = 15;
+}
+
+// ============================================================================
+// Request/Response Messages
+// ============================================================================
+
+message CreateBlobRequest {
+  // The blob's media type; empty when unknown.
+  string media_type = 1;
+
+  // Present: the blob is a File with this name.
+  optional string name = 2;
+
+  // A File's modification time. Defaults to the completion time.
+  optional google.protobuf.Timestamp last_modified = 3;
+
+  // The exact size in bytes. A client that knows it must send it: it is what
+  // the daemon lays a multipart upload out by, and without it the answer is
+  // always a single location, bounded by what the store accepts in one request.
+  // A daemon refuses, with INVALID_ARGUMENT, a size larger than it will store.
+  // Never trusted as the blob's size — CompleteBlob records what was written.
+  optional int64 size = 4;
+}
+
+message CreateBlobResponse {
+  // The PENDING record.
+  BlobInfo blob = 1;
+
+  // How to upload the bytes. Exactly one is set.
+  oneof upload {
+    // One request carrying the whole body.
+    SignedLocation location = 2;
+
+    // Parts, signed on demand with SignUploadParts.
+    MultipartUpload multipart = 3;
+  }
+}
+
+// A multipart layout, chosen by the daemon to fit its store's rules. Part n
+// (1-based) is bytes [(n-1) * part_size, min(size, n * part_size)) of the
+// body: every part is exactly `part_size` except the last, which holds the
+// rest. Parts may be uploaded in any order, concurrently, and again.
+message MultipartUpload {
+  int64 part_size = 1;
+  int32 part_count = 2;
+
+  // When the upload expires unless completed. Signing a part does not extend
+  // it; the sweep aborts an expired upload and deletes what it received.
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message SignUploadPartsRequest {
+  string id = 1;
+
+  // Which parts to sign, 1-based. A daemon may cap how many one call signs
+  // and sign the first that many; ask again for the rest.
+  repeated int32 part_numbers = 2;
+}
+
+message SignUploadPartsResponse {
+  repeated UploadPart parts = 1;
+}
+
+message UploadPart {
+  int32 part_number = 1;
+
+  // Send this part's bytes, and nothing else, exactly as signed.
+  SignedLocation location = 2;
+}
+
+message CompleteBlobRequest {
+  string id = 1;
+}
+
+message CompleteBlobResponse {
+  // The READY record.
+  BlobInfo blob = 1;
+
+  // The value to place in a run's input: the stored form, the whole object.
+  utos.workflow.v1.Blob handle = 2;
+}
+
+message GetBlobRequest {
+  string id = 1;
+
+  // Also return a signed download location. Recorded as a `downloaded` event.
+  // Ignored unless the blob is READY.
+  bool include_download = 2;
+}
+
+message GetBlobResponse {
+  BlobInfo blob = 1;
+
+  // The stored form, the whole object. Absent unless READY.
+  optional utos.workflow.v1.Blob handle = 2;
+
+  // Present when requested and the blob is READY. To download a handle whose
+  // offset and size cover less than the object, request that range.
+  optional SignedLocation download = 3;
+
+  // For a PENDING multipart upload, the parts the store has received, in
+  // ascending order — what a client that restarted uploads the rest after.
+  repeated int32 uploaded_parts = 4;
+}
+
+message ListBlobsRequest {
+  // Every filter is optional and they combine with AND.
+  optional BlobRetention retention = 1;
+  optional BlobOrigin origin = 2;
+  optional BlobState state = 3;
+
+  // Blobs a run tree produced or attached, named by its root execution.
+  optional string root_execution_id = 4;
+
+  optional google.protobuf.Timestamp created_before = 5;
+
+  // Blobs whose newest history event is older than this, or that have none.
+  optional google.protobuf.Timestamp last_used_before = 6;
+
+  // At most this many; the daemon chooses when zero, and may cap it.
+  int32 page_size = 7;
+
+  // `next_page_token` from a previous response, to continue it.
+  string page_token = 8;
+}
+
+message ListBlobsResponse {
+  repeated BlobInfo blobs = 1;
+
+  // Empty on the last page.
+  string next_page_token = 2;
+}
+
+message GetBlobHistoryRequest {
+  string id = 1;
+}
+
+enum BlobEventKind {
+  BLOB_EVENT_KIND_UNSPECIFIED = 0;
+
+  // A client created it.
+  BLOB_EVENT_KIND_UPLOADED = 1;
+
+  // An execution wrote it.
+  BLOB_EVENT_KIND_PRODUCED = 2;
+
+  // It arrived as a run's input — at ScheduleExecution, or in the input of a
+  // `workflow.spawn`, which starts a run tree of its own.
+  BLOB_EVENT_KIND_ATTACHED = 3;
+
+  // An execution opened its bytes: streamed into a request, or materialized
+  // in an expression. Slicing is not a read.
+  BLOB_EVENT_KIND_READ = 4;
+
+  // A client was issued a download location.
+  BLOB_EVENT_KIND_DOWNLOADED = 5;
+}
+
+// One row of a blob's history. Rows are about the handle, never about bytes,
+// and are aggregated by (event, root execution, workflow): a loop that reads a
+// blob five thousand times, or calls five thousand sub-workflows that each
+// read it, is one row with `executions` counting them. `uploaded` and
+// `downloaded` involve no execution and are one row each.
+message BlobEvent {
+  BlobEventKind kind = 1;
+
+  // The run tree, by its root. Absent for `uploaded` and `downloaded`.
+  optional string root_execution_id = 2;
+
+  // The workflow that acted, with the digest of the bundle that ran. Absent
+  // for `uploaded` and `downloaded`.
+  optional WorkflowReference workflow = 3;
+
+  // The activity, for `produced`.
+  optional string activity = 4;
+
+  google.protobuf.Timestamp first_at = 5;
+  google.protobuf.Timestamp last_at = 6;
+
+  // How many distinct executions this row aggregates. 1 for `produced`,
+  // `uploaded` and `downloaded`.
+  int64 executions = 7;
+}
+
+message GetBlobHistoryResponse {
+  BlobInfo blob = 1;
+
+  // Oldest first, by `first_at`.
+  repeated BlobEvent events = 2;
+}
+
+message DeleteBlobRequest {
+  string id = 1;
+}
+
+message DeleteBlobResponse {
+  // The DELETED record.
+  BlobInfo blob = 1;
+}
+
+message PruneBlobsRequest {
+  // As ListBlobsRequest; at least one of these must be set, so that an empty
+  // request cannot delete everything.
+  optional BlobRetention retention = 1;
+  optional BlobOrigin origin = 2;
+  optional google.protobuf.Timestamp created_before = 3;
+  optional google.protobuf.Timestamp last_used_before = 4;
+
+  // Report what would be deleted, and delete nothing.
+  bool dry_run = 5;
+}
+
+message PruneBlobsResponse {
+  // How many blobs were (or, on a dry run, would be) deleted, and their bytes.
+  int64 count = 1;
+  int64 bytes = 2;
+
+  // Blobs that matched and were skipped because a non-terminal execution can
+  // reference them.
+  int64 skipped = 3;
+}

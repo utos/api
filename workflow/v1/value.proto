@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+package utos.workflow.v1;
+
+option csharp_namespace = "Utos.Workflows.V1";
+
+// ============================================================================
+// Values
+// ============================================================================
+//
+// What a run carries: a run's input, a result, an emitted value. See
+// docs/workflow-values.md.
+//
+// A WorkflowValue is the JSON data model plus the types JSON cannot express, and the
+// type of every node is part of the structure — a oneof case — and never
+// inferred from content. A map holding the key "$blob" is a map, whatever the
+// key is called; only a `blob_value` is a blob. That is the whole reason this
+// message exists rather than google.protobuf.Value, which can say nothing
+// JSON cannot.
+//
+// Values are what a run *produces and consumes*. What an author *writes* — a
+// transition's input transform, a result template, a schema — stays a
+// google.protobuf.Struct in the bundle: those are documents, rendered into
+// Values when a run evaluates them, and a bundle never contains a blob.
+
+// One value. Exactly one case is set; a WorkflowValue with none set is malformed
+// (UTOS-V101).
+message WorkflowValue {
+  oneof kind {
+    google.protobuf.NullValue null_value = 1;
+    bool bool_value = 2;
+
+    // The one number type: an IEEE 754 double, as in JavaScript and in
+    // google.protobuf.Value. Must be finite (UTOS-V102).
+    double number_value = 3;
+
+    string string_value = 4;
+    WorkflowList list_value = 5;
+    WorkflowMap map_value = 6;
+
+    // Bytes, by handle or inline. See docs/binary-data.md.
+    Blob blob_value = 7;
+  }
+}
+
+// An ordered list of values.
+message WorkflowList {
+  repeated WorkflowValue values = 1;
+}
+
+// A map from string keys to values — a JSON object. Keys are arbitrary strings,
+// none of them reserved.
+message WorkflowMap {
+  map<string, WorkflowValue> fields = 1;
+}
+
+// An immutable sequence of bytes with a media type: JavaScript's `Blob`, and —
+// when `name` is present — its `File`. See docs/binary-data.md.
+//
+// Two backings, which an expression cannot tell apart: a small blob carries its
+// bytes inline, a large one names an object the daemon stored. Which one a
+// daemon produces is its own configuration, not a semantic, and a reader must
+// accept both.
+message Blob {
+  oneof backing {
+    // Inline: the bytes themselves. `offset` is 0 and `size` equals the length
+    // of `data`.
+    bytes data = 1;
+
+    // Stored: an opaque identifier the daemon minted. Not a storage key, not a
+    // URL, and not a digest. Resolved by lookup, and only within the run trees
+    // the blob belongs to (docs/binary-data.md § Access), so an id proves
+    // nothing on its own.
+    string id = 2;
+  }
+
+  // Stored only: where this blob starts within the stored object, in bytes. A
+  // slice of a stored blob is the same object at a different offset and size,
+  // so slicing never copies.
+  int64 offset = 3;
+
+  // Length in bytes. Always known, never negative.
+  int64 size = 4;
+
+  // Media type, e.g. "image/png" or "text/plain;charset=utf-8". Empty when
+  // unknown. Exposed to expressions as `type`, which is JavaScript's name.
+  string media_type = 5;
+
+  // Present: this blob is a File, and this is its name. A name is a label, not
+  // a path; it may be empty.
+  optional string name = 6;
+
+  // A File's modification time. Meaningful only when `name` is present;
+  // absent reads as 0 in an expression.
+  optional google.protobuf.Timestamp last_modified = 7;
+}

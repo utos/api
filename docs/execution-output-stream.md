@@ -44,6 +44,13 @@ Emitting is not conditional on anyone listening. An execution with no consumer �
 `workflow.spawn`, or a top-level run — still records everything it emits, and those entries are
 readable over `WatchOutput` for as long as the daemon retains the execution.
 
+An entry is a map of values ([`workflow-values.md`](workflow-values.md)), and may hold blobs. A
+blob appended to a **root** execution's stream — a top-level run's, or a spawned run's — becomes
+durable at that moment, whether it is emitted or returned, so a long-running poller's emissions do
+not wait for a termination that may never come before they are safe to download. A blob a child
+emits to its consumer is not promoted: the consumer is the one that asked for it, and it decides
+what to carry further ([`binary-data.md` § Retention](binary-data.md#retention)).
+
 ## Consuming, and back-pressure
 
 A `workflow.call` activity that declares `on_emitted` is that execution's **privileged consumer**.
