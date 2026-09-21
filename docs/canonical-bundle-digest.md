@@ -60,9 +60,9 @@ arise. The rules:
 3. **Maps → JSON objects, keys sorted by JCS.** Applies to `workflows`, `dependencies`,
    `activities`, `headers`, and every `google.protobuf.Struct.fields` — recursively.
 4. **Order-significant lists → JSON arrays, order preserved.** JCS never reorders arrays. Applies
-   to `on_success` and `on_failure` (evaluated in order, first match wins),
-   `PromiseActivityConfig.branches`, and `ListValue` arrays inside any `Struct`.
-5. **`Struct` / `Value`.** Object/scalar per proto3 JSON. `number_value` (a `double`) is
+   to `onSuccess`, `onFailure` and `onEmitted` (evaluated in order, first match wins),
+   `PromiseActivityConfig.branches`, and `google.protobuf.ListValue` arrays inside any `Struct`.
+5. **`google.protobuf.Struct` / `Value`.** Object/scalar per proto3 JSON. `number_value` (a `double`) is
    canonicalized by JCS (ECMAScript shortest round-trip). `NullValue` → JSON `null`. `NaN` and
    `±Infinity` are not representable as JSON numbers and are **forbidden** in bundle `Struct`
    values — reject at build time.
@@ -120,7 +120,7 @@ What this demonstrates:
   everywhere are alphabetical (`http` before `onSuccess`, `name`/`namespace`/`version`).
 - **List order preserved:** the two `onSuccess` rules keep their authored order (the conditional
   rule stays first, the fallback second) — sorting them would break first-match-wins.
-- **Defaults / empties omitted:** `dependencies` (empty), `on_failure` (empty), `done`'s empty
+- **Defaults / empties omitted:** `dependencies` (empty), `onFailure` (empty), `done`'s empty
   `onSuccess`, the unset `optional` `description`/`registry`, and any `requiredCount:0` are all
   absent.
 - **Empty messages kept:** the fallback rule's `"result": {}` — a `return` with no value — is a
@@ -128,7 +128,7 @@ What this demonstrates:
   payload. A `workflow.call` activity's `"call": {}` is the same case.
 - **`Duration`** as the string `"5s"`.
 
-Digest: `sha256:` `TBD (reference impl)` — see Conformance.
+Digest: not yet pinned — see Conformance.
 
 ## Conformance
 
@@ -140,6 +140,9 @@ agrees — by:
 2. committed **golden vectors**: `(WorkflowBundle input → expected sha256)` fixtures that become
    the cross-SDK source of truth, run as conformance tests in each SDK repo.
 
-Both are **deferred** until a reference implementation exists (in the daemon or `sdk-dotnet`).
-Until then the daemon should leave `WorkflowReference.digest` empty rather than emit a hash that
-has not been conformance-checked.
+The first exists: `ComputeContentDigest()` in `Utos.Workflow` (`utos/sdk-dotnet`), which the
+reference daemon uses. The golden vectors do not yet. Until they are committed the format is
+**provisional**: a digest compares bundles digested by the same implementation, and a tool may
+display one, but a client must not send a digest *it computed* as a guard on a daemon request
+(`WorkflowReference.digest`), since the daemon may have been built against another implementation.
+A digest the daemon itself returned is always safe to send back.

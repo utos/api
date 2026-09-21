@@ -7,7 +7,7 @@ stable code, for the same reason as [`workflow-validation.md`](workflow-validati
 workflow must mean the same thing on every implementation, and an expression that one daemon
 accepts cannot be one another rejects or computes differently.
 
-## Scope
+## What this document covers
 
 Expressions are **JavaScript**, by reference to ECMAScript, restricted to the subset in
 [§ Grammar](#grammar) and evaluated under the guarantees in [§ Runtime](#runtime-guarantees).
@@ -34,7 +34,7 @@ another tool has. Evaluation rules are enforced by the executor on every evaluat
 |---|---|
 | `TransitionRule.condition`, `EmissionRule.condition`, `PromiseBranch.condition` | **Condition** — the whole string is one expression, no delimiters, must be boolean |
 | `PromiseForEach.collection` | **Whole-field value** — `{{ }}`, must evaluate to an array; anything else — a string, an object, a number, `null`, `undefined` — is `UTOS-E105` |
-| Leaf strings of `TransitionTarget.input`, `EmitAction.value`, `TransitionRule.result`, `EmissionRule.result`, `CallActivityConfig.input`, `HandlerDispatch.input`, `PromiseBranch.input` | **Value** — whole-field or interpolation |
+| Leaf strings of `TransitionTarget.input`, `EmitAction.value`, `TransitionRule.result`, `EmissionRule.result`, `WorkflowActivityConfig.input`, `HandlerDispatch.input`, `PromiseBranch.input` | **Value** — whole-field or interpolation |
 | `HttpActivityConfig.url`, `.headers` values; `PromiseBranch.name`; `WorkflowError.message` | **Text** — whole-field or interpolation, always rendered to a string |
 | `HttpActivityConfig.body` | **Text**, with one exception: a whole-field template whose value is a `Blob` sends that blob's bytes ([`binary-data.md` § Sending a request body](binary-data.md#sending-a-request-body)) |
 | Leaf strings of `WorkflowError.details` | **Value**, restricted to plain data — a blob there is `UTOS-E103`, because details stay JSON ([`workflow-values.md`](workflow-values.md#values-and-templates)) |
@@ -111,20 +111,58 @@ promise. An expression that ends in a promise it did not await is `UTOS-E103`.
 
 ## Scope
 
-| Name | In scope for |
-|---|---|
-| `input`, `env` | every expression |
-| `output`, `error`, `response` | every transition rule and everything it renders — `condition`, `transition.input`, `emit`, `result`, `error` — on **both** paths. **Always defined**, with `null` where they do not apply: `output` is `null` after a failure, `error` is `null` after a success, `response` and every key within `error` and `response` are `null` when there was no request or no response. A condition may name `response.status` on an activity that made no request and evaluate `false` rather than fail — the failure that would otherwise raise is raised while a failure is already being handled |
-| a `PromiseForEach.alias` | the branch it is declared on: `name`, `condition`, `input` |
-| dependency aliases | `PromiseBranch` and `EmissionRule` fields, as `workflow-source-format.md` defines them |
+What an expression can see, and what each name holds. This is the one place scope is defined; the
+source format's § Templates only shows how authors use it.
+
+| Name | Holds | In scope for |
+|---|---|---|
+| `input` | What this activity received: on a run's start activity, the run's input; on a sub-workflow's start activity, the invoking construct's rendered `input`; otherwise the rendered `input` of the transition that led here — or, where that transition declared none, the previous activity's `output`, passed through unchanged | every expression |
+| `env` | The run's ambient environment, `string → string`, supplied with the run (`ScheduleExecutionRequest.env`) and inherited by every sub-workflow. A document does not set it; it may declare what it requires (`spec.env`, [`workflow-schemas.md`](workflow-schemas.md)) | every expression |
+| `output` | What the activity a rule is leaving produced. For `http`, the parsed JSON body or `null` ([`binary-data.md` § Reading a response](binary-data.md#reading-a-response)); for `timer`, its input; for `workflow.call`, the callee's result; for `workflow.spawn`, `{ "execution_id": … }`; for a promise, a map keyed by branch `name`. **In an `onEmitted` rule, the emitted value.** `null` after a failure | every rule, and everything the rule renders |
+| `error` | Why the activity failed — `{ code, message, details }`. `null` after a success and in an `onEmitted` rule | every rule, and everything the rule renders |
+| `response` | An `http` activity's response — `{ status, headers, body }` — on **both** paths | every rule, and everything the rule renders |
+| a `PromiseForEach.alias` | The collection item this branch was expanded for | the branch it is declared on: `name`, `condition`, `input` |
+
+"Everything the rule renders" is its `condition`, `transition.input`, `emit`, `result` and
+`error` — and, for an `onEmitted` rule, `handle.input`.
+
+**`output`, `error` and `response` are always defined, and so is every key within `error` and
+`response`**, with `null` where they do not apply: `response`, and each of its keys, is `null` when
+there was no request or no response. A condition may therefore name `response.status` on an
+activity that made no request and evaluate `false`. Implementations must not leave these undefined:
+the failure that would raise is raised *while a failure is already being handled*, which is the
+worst moment for it.
+
+**`error` is separate from `output`** rather than replacing it on the failure path, so that a
+condition written for the success path can never silently read error fields.
+
+**`output`, `error` and `response` describe the activity a rule is leaving**, and are not in scope
+when the *target* activity's own `url`, `headers` or `body` are rendered — that is a fresh scope of
+`input` and `env`. What the target needs is carried across in the transition's `input`
+(`workflow-source-format.md` § Templates shows the pattern).
 
 `response` is `{ status, headers, body }`: `headers` with **lowercased names**
 (`response.headers['retry-after']` — HTTP header names are case-insensitive and a JavaScript
 property lookup is not, so one spelling is chosen, Node's), and `body` the response's bytes as a
 **`Blob`** (§ Blob and File), whatever its media type — the same bytes `output` was parsed from,
-when it was. Every key is present and `null` when there was no response. What the HTTP activity
-reads, and when a body is stored rather than held inline, is
+when it was. What the HTTP activity reads, and when a body is stored rather than held inline, is
 [`binary-data.md` § The HTTP activity](binary-data.md#the-http-activity).
+
+`error` is `{ code, message, details }`: the failure's identifier and explanation, and `details`,
+the structured details it carried — what an `error` action's `details` rendered to, including one
+a failed sub-workflow raised — or `null` when it carried none. Every key is present on the failure
+path, so `error.details?.orderId` reads through or is `undefined`, and never fails for want of a
+`details` key.
+
+A name outside its row does not exist: reading it is a `ReferenceError`, reported as
+`UTOS-E120`. A missing **member** of a name that does exist is `undefined`, as in JavaScript,
+and `?.` and `??` are the idioms for optional data — with the one exception of a retired member,
+below.
+
+**Every value in scope is deep-frozen.** Assigning to it, adding to it, or calling a mutating
+method on it (`push`, `sort`, `splice`, `fill`, `reverse`, `length = n`) is a `TypeError`
+(`UTOS-E120`). `toSorted`, `toSpliced`, `with`, spread and `concat` produce copies and are the
+idioms. Locals an expression creates itself are freely mutable.
 
 ### Retired members
 
@@ -145,27 +183,6 @@ spelling the static rule cannot see — `response['body' + 'Text']` — throws a
 (`UTOS-E120`). The static rule applies only where the name refers to the scope name, not to a local
 that shadows it.
 
-`error` is `{ code, message, details }`: the failure's identifier and explanation, and `details`,
-the structured details it carried — what an `error` action's `details` rendered to, including one
-a failed sub-workflow raised — or `null` when it carried none. Every key is present on the failure
-path, so `error.details?.orderId` reads through or is `undefined`, and never fails for want of a
-`details` key.
-
-The meaning of each context — what `input` is on the start activity, why `error` is separate
-from `output`, that `error` and `response` describe the activity a transition is *leaving* and
-are not in scope when the target's own `url`, `headers` and `body` are rendered — is defined in
-[`workflow-source-format.md` § Templates](workflow-source-format.md#templates); this document
-does not restate it.
-
-A name outside its row does not exist: reading it is a `ReferenceError`, reported as
-`UTOS-E120`. A missing **member** of a name that does exist is `undefined`, as in JavaScript,
-and `?.` and `??` are the idioms for optional data.
-
-**Every value in scope is deep-frozen.** Assigning to it, adding to it, or calling a mutating
-method on it (`push`, `sort`, `splice`, `fill`, `reverse`, `length = n`) is a `TypeError`
-(`UTOS-E120`). `toSorted`, `toSpliced`, `with`, spread and `concat` produce copies and are the
-idioms. Locals an expression creates itself are freely mutable.
-
 ## Values
 
 ### Numbers
@@ -175,8 +192,8 @@ There is **one number type**, the IEEE double, the same type a value's `number_v
 `5` and `5.0` are the same number; `10 / 4` is `2.5`; `3 / 4 * 100` is `75`; `%` and `**`
 behave as ECMAScript defines. Consequences an implementation must honour:
 
-- A result that is a whole number in range is delivered as an integer (`int64`), anything else
-  as a double; a whole-valued result renders as `5`, never `5.0`.
+- A whole-valued number renders as `5`, never `5.0`, wherever it is rendered to text. On the
+  wire every number is a double; a value carries no separate integer type.
 - A non-finite result — `x / 0`, `0 / 0`, overflow — is `UTOS-E102`, never a value.
 - **An integer beyond ±2⁵³ in scope is `UTOS-E104`**, refused before evaluation rather than
   rounded. A double cannot hold it exactly, and a snowflake-style id that came back changed
@@ -222,7 +239,7 @@ Programs are parsed as **strict mode** scripts **with `await` permitted at the t
 Programs) — as the body of an async arrow is. A parse failure is `UTOS-E060` — which is also where
 a `return` outside an arrow body, `with`, an `await` inside an arrow that is not `async`, a `yield`
 outside a generator, and the other things strict mode refuses end up, before any grammar rule sees
-them. `UTOS-E011` is unallocated for that reason.
+them.
 
 | In the language | | Refused | Code |
 |---|---|---|---|
@@ -245,25 +262,16 @@ them. `UTOS-E011` is unallocated for that reason.
 | | | `delete`, `void` | `UTOS-E050` |
 | | | any other node type | `UTOS-E099` |
 
-`UTOS-E052` (compound assignment operators) is **retired in 0.0.16 and not reused**: every
-assignment operator is in the language. Bitwise and shift operators were admitted at the same
-time — pure integer arithmetic, and what `Buffer` work is written with.
+Codes that no longer refuse anything are **retired, not reused** — a code is what an implementation
+suppresses, cites and asserts on, so giving an old one a new meaning would change behaviour
+silently:
 
-`UTOS-E031` (`async`, `await`, generators, `yield`) is **retired in 0.20.0 and not reused**.
-`await` and `async` arrows are in the language, so that a blob's bytes can be read the way Node
-reads them (§ Awaiting), and what remains of the rule is caught earlier by others: a generator is a
-`function*` (`UTOS-E002`) or a generator method (`UTOS-E020`), `yield` outside one is a parse error
-(`UTOS-E060`), `for await` is a loop (`UTOS-E001`), and an `async function` is a function
-(`UTOS-E002`). A code with nothing left to refuse is not kept for the look of it.
-
-`UTOS-E051` (`instanceof`) is **retired in 0.20.0 and not reused**. `value instanceof Blob` is how
-Node tests for a blob, and `instanceof Date`, `Map` and `URL` are just as idiomatic. It was refused
-under "no prototypes", but that principle is about *building* or *changing* a chain, and
-`instanceof` does neither: it reads one, as `Object.getPrototypeOf` already can, and every chain it
-can reach is frozen (§ Runtime guarantees 3). A `Symbol.hasInstance` an author writes —
-`{ [Symbol.hasInstance]: v => true }` — makes it call an arrow, which is nothing an expression
-could not already do, and the statement budget counts the call. A right-hand side that is not a
-constructor is a `TypeError` (`UTOS-E120`), as in ECMAScript.
+| Code | Refused | Why it is gone |
+|---|---|---|
+| `UTOS-E011` | — | Never allocated: what it would have refused is a strict-mode parse error, `UTOS-E060` |
+| `UTOS-E031` | `async`, `await`, generators, `yield` | Retired in 0.20.0. `await` and `async` arrows are in the language so a blob's bytes can be read as Node reads them (§ Awaiting), and the rest is caught earlier: a generator is a `function*` (`UTOS-E002`) or a method (`UTOS-E020`), `yield` outside one is `UTOS-E060`, `for await` is a loop (`UTOS-E001`), an `async function` a function (`UTOS-E002`) |
+| `UTOS-E051` | `instanceof` | Retired in 0.20.0. `value instanceof Blob` is how Node recognises a blob. "No prototypes" is about *building* or *changing* a chain; `instanceof` only reads one, as `Object.getPrototypeOf` can, over chains that are all frozen (§ Runtime guarantees 3). A `Symbol.hasInstance` an author writes makes it call an arrow, which an expression can already do. A right-hand side that is not a constructor is a `TypeError` (`UTOS-E120`) |
+| `UTOS-E052` | compound assignment operators | Retired in 0.0.16, when every assignment operator was admitted — and bitwise and shift operators with them, pure integer arithmetic that `Buffer` work is written with |
 
 Recursion through a `const` helper (`const f = n => … f(n - 1) …`) is in the language and is
 bounded at evaluation time (`UTOS-E113`). `==`/`!=` are in the language; implementations may
@@ -419,12 +427,12 @@ draw on retry: an evaluation's values are decided once. A conformance case suppl
 and seed as `clock` and `seed`. Calling `Math.random()` or `crypto.randomUUID()` counts across
 all expressions of the activity in document order, so two expressions never draw the same value.
 
-Recorded for later, on a named need, and not part of this version: `TextDecoder` with a fixed
-label set (non-UTF-8 mail bodies), `crypto.verify` with JWK keys (signed webhooks and ID tokens,
-keys fetched by an HTTP activity), `zlib` with an output cap, `path.posix`, `Object.groupBy`.
-Never: anything with I/O or an event loop, `console`, `Intl` (output differs by ICU build),
-`process` beyond what `env` already is. `utos.*`, the host library of 0.0.15, is withdrawn:
-`utos` is not in scope and reading it is a `ReferenceError` (`UTOS-E120`).
+Recorded for later, each waiting on a named need: `Uint8Array` and `ArrayBuffer`, with `Buffer`
+as a `Uint8Array` subclass and `blob.arrayBuffer()` (adding them breaks no document);
+`TextDecoder` with a fixed label set (non-UTF-8 mail bodies); `crypto.verify` with JWK keys
+(signed webhooks and ID tokens, keys fetched by an HTTP activity); `zlib` with an output cap;
+`path.posix`; `Object.groupBy`. Never: anything with I/O or an event loop, `console`, `Intl`
+(output differs by ICU build), `process` beyond what `env` already is.
 
 ### Blob and File
 
@@ -550,9 +558,13 @@ by a blocking read from the store — and return a promise already resolved; `aw
 rather than concurrency. `Promise` is removed from the global object after the engine is built,
 which leaves the intrinsic that `await` uses in place.
 
-## Migrating from 0.19
+## Migrating
 
-Non-normative. `response.body` became a `Blob` and `response.bodyText` was retired in 0.20.0, so
+Non-normative. What changes for a document written against an earlier version, newest first.
+
+### Migrating from 0.19
+
+`response.body` became a `Blob` and `response.bodyText` was retired in 0.20.0, so
 every document that read a body changes. None changes silently: `response.bodyText` is refused at
 load (`UTOS-E070`), and every `Buffer` method called on a `Blob` is a `TypeError` (`UTOS-E120`) —
 `toString` included, which is deliberate (§ Blob and File).
@@ -575,9 +587,9 @@ load (`UTOS-E070`), and every `Buffer` method called on a `Blob` is a `TypeError
   that tested `output === null` to detect, say, an `application/problem+json` error body now finds
   it parsed.
 
-## Migrating from Scriban
+### Migrating from Scriban
 
-Non-normative. Before this document the reference implementation evaluated `{{ }}` with
+Before this document the reference implementation evaluated `{{ }}` with
 Scriban, unspecified. Existing documents change as follows; every Scriban form not listed is a
 syntax error under the grammar, so a stale document fails to load rather than running
 differently.

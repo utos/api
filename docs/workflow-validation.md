@@ -51,9 +51,8 @@ Activity-name references resolve by **ordinal (case-sensitive)** comparison. Pro
 are ordinal, so any looser rule would let a document validate and then fail to find its target at
 run time.
 
-There are no reserved names. Until 0.0.15 a transition could target the keywords `end` and
-`error`, matched case-insensitively; ending a path is now a `result` action and failing it an
-`error` action, so a target is always an activity and the comparison is ordinal everywhere.
+There are no reserved names. Ending a path is a `result` action and failing it an `error` action,
+so a transition target is always an activity, compared ordinally like every other name.
 
 ---
 
@@ -66,7 +65,7 @@ There are no reserved names. Until 0.0.15 a transition could target the keywords
 | `UTOS-B003` | `entryPoint` must be a key of `workflows` |
 | `UTOS-B004` | Every `workflows` key must be non-empty |
 | `UTOS-B005` | Every `workflows` key must equal the canonical identity derived from that workflow's own `metadata` — `[registry/][namespace/]name:version` |
-| `UTOS-B006` | Every `WorkflowActivityConfig.workflow` in the bundle must be a key of `workflows` |
+| `UTOS-B006` | Every document the bundle names — `WorkflowActivityConfig.workflow`, `PromiseBranch.workflow`, `HandlerDispatch.workflow` — must be a key of `workflows` |
 | `UTOS-B007` | `spec.dependencies` must be empty in a built bundle |
 
 `UTOS-B005` is what makes a bundle self-describing: the key and the metadata cannot disagree
@@ -154,11 +153,10 @@ activity does. The `path` names the level that is unset, e.g.
 `UTOS-T003` applies at **every** `TransitionTarget` site: `onSuccess`, `onFailure`,
 `emit.transition`, and an `onEmitted` rule's `transition`. The `path` identifies which. Resolution
 is scoped to the workflow that declares the transition — a target never crosses into a
-sub-workflow. A target is always an activity: a document written before 0.0.16 that transitions
-to `end` or `error` fails here, loudly, since neither is an activity.
+sub-workflow. A target is always an activity; there are no terminal keywords to name.
 
 `UTOS-T005` is what makes an `error` action reportable. `code` is the identifier a consumer or an
-`on_failure` rule matches on, so it is a literal, not a template, and it is required; `message`
+`onFailure` rule matches on, so it is a literal, not a template, and it is required; `message`
 and `details` are templates and may be omitted. The rule applies to an `error` action wherever one
 appears — a transition rule or an `onEmitted` rule.
 
@@ -181,9 +179,6 @@ What is a dispatch and what is a transition is decided per action, not per const
 `UTOS-T004` exists because `emit` is the one action that is not terminal. `result` and `error`
 end a path and need no target; `emit` appends a value and carries on, so a rule that emits without
 saying where to go next is a dead end rather than a return, and would strand the execution.
-
-The shared validator walks `onSuccess` and `onFailure` alike, so `UTOS-T003` applies uniformly
-across both.
 
 ## `UTOS-C1##` — HTTP configuration
 
@@ -275,8 +270,8 @@ block of a `call.onEmitted` rule, which carry the same three fields and mean the
 them. `UTOS-C501`–`UTOS-C503` check a dispatch wherever one appears; a branch declares those fields
 flat, an emission rule nests them, and neither changes what is being checked.
 
-`UTOS-C504` is deliberately weak. An emission rule carries `handle`, `transition` or `result` as a
-proto `oneof`, so *two* actions cannot be expressed at all and there is nothing to check; what is
+`UTOS-C504` is deliberately weak. An emission rule carries `handle`, `transition`, `result` or `error`
+as a proto `oneof`, so *two* actions cannot be expressed at all and there is nothing to check; what is
 left is a rule with **none**, which is a value that matched a condition and then did nothing. That
 is a dead end rather than a skip — an unmatched rule list already means "take the next value" — and
 is the same distinction `UTOS-T001` draws for a transition rule.
@@ -294,7 +289,7 @@ learned what `UTOS-C502` means has learned it everywhere.
 
 `UTOS-C503` is checkable for the same reason `UTOS-C403` is: the dispatched workflow is present in
 the bundle by `UTOS-B006`. By the time a bundle exists, `self` has already been rewritten to a
-canonical identity by the CLI, so these rules never see the word — an unresolvable alias is a
+canonical identity by the front end that built it, so these rules never see the word — an unresolvable alias is a
 source-format error (`UTOS-S004`), caught before a bundle is built.
 
 Note that `UTOS-C501`–`UTOS-C503` deliberately mirror `UTOS-C401`–`UTOS-C403` rather than
@@ -327,10 +322,12 @@ every rule in this document has to pass.
 
 ---
 
-## Struct values
+## Templates
 
-`google.protobuf.Struct` values — `TransitionRule.result`, `TransitionTarget.input`,
-`WorkflowActivityConfig.input` — are not otherwise inspected, with one exception:
+The `google.protobuf.Struct`s in a bundle are **templates**: `TransitionTarget.input`,
+`TransitionRule.result`, `EmitAction.value`, `WorkflowError.details`, and the `input` of a
+sub-workflow activity, a promise branch or a handler. They are not otherwise inspected, with one
+exception:
 
 | Code | Rule |
 |---|---|
@@ -344,10 +341,10 @@ The schema slots are the exception to "not otherwise inspected": `ActivitySchema
 `WorkflowSpec.output`, `WorkflowSpec.emits` and `WorkflowSpec.env` are `Struct`s whose *content*
 is a specified document, and `UTOS-H0##` inspects it.
 
-These `Struct`s are *templates*, and `UTOS-V0##` covers them. A run's own values — its input, its
-results, its emitted values — are `utos.workflow.v1.WorkflowValue`s, which never appear in a bundle, and
-their rules are `UTOS-V1##` in [`workflow-values.md`](workflow-values.md). A template may contain
-any key, `$blob` included: nothing in a bundle is a blob, and no key is reserved.
+`UTOS-V0##` covers templates. A run's own values — its input, its results, its emitted values —
+are `utos.workflow.v1.WorkflowValue`s, which never appear in a bundle, and their rules are
+`UTOS-V1##` in [`workflow-values.md`](workflow-values.md). A template may contain any key,
+`$blob` included: nothing in a bundle is a blob, and no key is reserved.
 
 ## Conformance
 

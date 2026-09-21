@@ -77,10 +77,9 @@ message WorkflowSpec {
   // Map of activity name to activity definition. Activity names (the keys) are
   // referenced by TransitionTarget.name.
   //
-  // No name is reserved. Until 0.0.16 "end" and "error" were terminal keywords
-  // a transition could target; ending a path is now a `result` action and
-  // failing it an `error` action, so a target is always an activity and the
-  // comparison is ordinal everywhere (UTOS-A003 is retired).
+  // No name is reserved: ending a path is a `result` action and failing it an
+  // `error` action, so a transition target is always an activity, compared
+  // ordinally (UTOS-T003).
   map<string, WorkflowActivity> activities = 2;
 
   // A JSON Schema 2020-12 document describing what this workflow returns — the

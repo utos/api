@@ -72,8 +72,8 @@ library, and each evaluation error code.
 
 ## Running them
 
-Each SDK runs this directory against its evaluator as part of its own test suite, with the
-limits at their defaults. A case that needs a specific limit says so in a `limits` object with
+Every expression evaluator runs this directory as part of its own test suite — the reference
+daemon's is where it runs today — with the limits at their defaults. A case that needs a specific limit says so in a `limits` object with
 the same names as the codes it exercises (`statements`, `memory`, `timeout`…), and
 `materialization` for the bytes one read of a blob may bring into memory. A case that sets
 `materialization` below the spec's 1 MiB floor does so to make a small case exercise the limit; an

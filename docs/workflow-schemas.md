@@ -6,10 +6,10 @@ checked, and what a failure reports. These are **spec-level** rules, each with a
 the same reason as [`workflow-validation.md`](workflow-validation.md): a contract that one
 implementation enforces and another ignores is not a contract.
 
-Until now a workflow said nothing about what it takes or returns. A caller learned the shape by
-running it, a bad input failed somewhere in the middle rather than at the door, and a registry had
-nothing to show. A declaration closes that, and it is also what makes anything further possible:
-without one, every value is "some JSON" and there is nothing for a tool to reason about.
+Without a declaration a caller learns a workflow's shape by running it, a bad input fails somewhere
+in the middle rather than at the door, and a registry has nothing to show. A declaration closes
+that, and it is also what makes anything further possible: without one, every value is "some
+JSON" and there is nothing for a tool to reason about.
 
 ## What is declared, and where
 
@@ -265,8 +265,8 @@ A **null value is a required string with no further constraints** — `API_BASE:
 it — which is the common case and deserves the short spelling. `type` may be written and must be
 `string` if it is; every property of a compiled `spec.env` is `string`-typed (`UTOS-H011`).
 
-Every workflow we have documents its variables in a comment today and nothing checks them. A run
-missing a required variable is now rejected at schedule, before anything executes.
+A run missing a required variable is rejected at schedule, before anything executes — rather than
+discovered as a URL with a hole in it, which is all a variable documented in a comment can offer.
 
 ## The type registry
 
@@ -382,7 +382,7 @@ media type is what whoever made the blob declared — a server's `content-type`,
 and checking it is checking a claim; a document that needs to know a file is really a PNG reads its
 first bytes. A failure is reported with keyword `mediaType` or `maxSize`.
 
-#### Authoring
+#### Declaring a blob
 
 In the short form `blob` and `file` are types like any other:
 
@@ -452,8 +452,8 @@ Filling a default is the one place a schema touches data. The rules that keep it
 - **Inbound boundaries only.** A default is filled wherever an activity's declared `input` is
   applied — scheduling a run, a transition into that activity, and an invocation of it — and, at
   the one inbound boundary that is not an activity input, against `spec.env` at schedule. A
-  default therefore means the same thing whichever way the activity is reached. An optional property that is absent and has
-  a `default` is present, holding it, from that point on.
+  default therefore means the same thing whichever way the activity is reached. An optional
+  property that is absent and has a `default` is present, holding it, from that point on.
 - **Output schemas never fill.** An absent required property in a result or an emitted value is a
   failure, not something to complete. A workflow that did not produce a field did not produce it.
 - **The filled value is what is recorded.** A replay sees exactly what the run saw, and an operator
@@ -635,10 +635,11 @@ bundle can say and nothing else would object to. The boolean form **is** a schem
 stays legal: `unevaluatedProperties: false` is exactly that, and is what this spec's own compiler
 emits. A slot's *top level* is narrower still (`UTOS-H003`).
 
-`UTOS-H003` is decision 5 of the design: **every declared value is an object with named keys**, at
-the top of every slot. Not an array, not a scalar. The wire slots are already `Struct`s, so this
-costs nothing and buys one shape for a tool to render, one place for a property to be named, and
-room to add a key without changing the type of everything that reads it.
+`UTOS-H003` holds that **every declared value is an object with named keys**, at the top of every
+slot. Not an array, not a scalar. Every value a run carries is a map at the top level
+([`workflow-values.md`](workflow-values.md)), so this costs nothing and buys one shape for a tool
+to render, one place for a property to be named, and room to add a key without changing the type
+of everything that reads it.
 
 `UTOS-H005` is what keeps schema evaluation offline. A `$ref` to `https://…` or to a file is
 refused at load rather than fetched, so a workflow's meaning does not depend on what some host
@@ -716,15 +717,17 @@ fixture already demonstrates, being far below it.
 
 ## Reuse
 
-Two workflows that both take a `Customer` copy the schema today. Three levels, and only the first
-is in this version:
+Two workflows that both take a `Customer` each carry a copy of its schema. Sharing it has three
+levels, and only the first is specified:
 
 1. **`$defs` within one schema**, which is standard JSON Schema and needs nothing from us. A `$ref`
-   into it is a JSON Pointer, and the graph must be acyclic (`UTOS-H006`).
+   into it is a JSON Pointer, and a chain of them must terminate (`UTOS-H006`).
 2. **A type declared in another document** — `$ref: "billing#/$defs/Customer"`, resolved through the
    dependency alias a bundle already resolves. Additive, and it drags dependency resolution into
    schema evaluation, so it waits for a reason to exist.
-3. **A published registry of types**, which is a registry's business rather than this document's.
+3. **A registry of shared, user-defined types**, which is a registry's business rather than this
+   document's — distinct from the handful of `utos:` types this spec itself publishes
+   (§ Published types).
 
 ## Identity
 
@@ -795,7 +798,8 @@ so any 2020-12 evaluator will do — provided it can be taught § Blobs in a sch
 the JSON data model, two built-in references, and two assertion keywords. Evaluators with custom
 keyword and custom reference hooks can do this; one that only takes JSON text cannot, since there is
 no JSON a blob could be rendered to without becoming a map. The **shared validator** checks the *schema document* at load:
-well-formed against the meta-schema, references known and acyclic, formats known, limits kept. One
+well-formed against the meta-schema, references resolving and every chain terminating, formats
+known, limits kept. One
 of its rules — `UTOS-H008`, a default validating against its own schema — needs an evaluator too,
 against a schema that is not known until a bundle is read; implementations that publish a
 NativeAOT binary should confirm their evaluator works without run-time reflection before adopting
@@ -814,7 +818,7 @@ for clients that want to branch on it.
 `spec.env` — which is also what a registry renders on a workflow's page.
 
 **A CLI can warn where it cannot refuse.** With a target shape, `{{ input.oderId }}` is knowably
-wrong, which is the most common authoring mistake and is invisible today. It is a warning with a
+wrong — the most common authoring mistake, and one nothing else catches. It is a warning with a
 file and a line rather than a rule, because reaching it means reading an expression and the answer
 is not always certain.
 

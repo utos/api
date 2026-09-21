@@ -53,7 +53,7 @@ what to carry further ([`binary-data.md` § Retention](binary-data.md#retention)
 
 ## Consuming, and back-pressure
 
-A `workflow.call` activity that declares `on_emitted` is that execution's **privileged consumer**.
+A `workflow.call` activity that declares `onEmitted` is that execution's **privileged consumer**.
 There is at most one, and it is the only reader that can affect the producer:
 
 > While an execution has a privileged consumer, an `emit` does not complete until that consumer's
@@ -86,16 +86,18 @@ dispatched it. Were the handler in the consumer's own graph, a transition back t
 would run in the handler's execution, which holds no subscription, and start a second producer
 instead of resuming the first.
 
+A consumer can also decline a value. An `onEmitted` rule list where no condition matches is
+exhausted, so the value is skipped and the next one taken — a filtering consumer, not an abandoned
+loop.
+
 ### A handler's emissions relay
 
 A handler's terminal result is discarded, and an `emit` inside a handler is appended to the
 **consumer's** own stream and handed to the consumer's caller.
 
-That is not a new rule so much as the preservation of an old one. A handler used to run inside the
-consumer's own execution, so a value it emitted was already the consumer's — the three-level relay
-that behaviour supports is load-bearing, and moving the handler into its own execution would have
-broken it silently. Relaying across the new boundary keeps it, and needs no keyword: emit in the
-handler, it comes out of the consumer.
+The handler is the body of the consumer's loop, so what it produces is, to the consumer's caller,
+what the consumer produced — and a caller of a consumer of a consumer depends on exactly that. It
+needs no keyword: emit in the handler, and it comes out of the consumer.
 
 Mechanically the consumer dispatches the handler as a consuming call of its own, so per entry:
 take V from the producer → dispatch the handler → the handler emits E → append E to our stream,
@@ -107,20 +109,15 @@ A consumer therefore holds two subscriptions at once — the producer's, and the
 One handler runs at a time, so one slot suffices, but it is live state and must survive a
 continue-as-new the way the producer subscription does.
 
-**Promise branches do not relay.** For a handler this preserves existing behaviour; for a branch
-it would change it, and N branches run concurrently, so interleaving their emissions into one
-stream would order them nondeterministically — which costs the single-ordered-stream property
-everything above depends on. A branch's emissions stay on the branch execution's own stream, where
+**Promise branches do not relay.** N branches run concurrently, so interleaving their emissions
+into one stream would order them nondeterministically — which costs the single-ordered-stream
+property everything above depends on. A branch's emissions stay on the branch execution's own stream, where
 `WatchOutput` can still read them.
-
-The same rule covers a handler that declines a value. An `on_emitted` rule list where no condition
-matches is exhausted, so the value is skipped and the next one taken — a filtering consumer, not an
-abandoned loop.
 
 ## Subscription lifetime
 
 A subscription ends when the consumer decides to stop — an `onEmitted` rule carrying a
-`transition` or a `result` — or when the consuming execution terminates, is cancelled, or fails.
+`transition`, a `result` or an `error` — or when the consuming execution terminates, is cancelled, or fails.
 A handler finishing is not leaving: it is how one iteration of the loop finishes.
 
 The first of those is the only exit reachable *from inside the loop*, and it is what makes the rest
@@ -149,8 +146,8 @@ not retract what it emitted.
 There is no ordering rule to state, and that is the design working rather than an omission.
 
 Emitted values and the terminal result are entries in a single ordered stream, walked by a single
-cursor. Dispatch is by entry kind — `value` to `on_emitted`, `result` to `on_success`, `error` to
-`on_failure` — so "all emissions are handled before the result" is arithmetic, not a constraint
+cursor. Dispatch is by entry kind — `value` to `onEmitted`, `result` to `onSuccess`, `error` to
+`onFailure` — so "all emissions are handled before the result" is arithmetic, not a constraint
 somebody has to enforce. A producer that emits and immediately returns cannot have its result
 overtake its own last value, because the two are adjacent entries in one log.
 
