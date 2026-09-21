@@ -1,9 +1,11 @@
 # Workflow Source Format
 
 Defines the **source format** — what people author — and its normative mapping onto
-`utos.workflow.v1.Workflow` (`workflow/v1/workflow.proto`). The daemon never sees this format:
-the CLI reads it, resolves dependencies, and produces a `WorkflowBundle`
-(`workflow/v1/bundle.proto`), which is what crosses the wire.
+`utos.workflow.v1.Workflow` (`workflow/v1/workflow.proto`). The daemon never sees this format: a
+**front end** reads it, resolves dependencies, and produces a `WorkflowBundle`
+(`workflow/v1/bundle.proto`), which is what crosses the wire. The reference CLI is one front end;
+`Utos.Workflow.Source` in `utos/sdk-dotnet` implements the mapping for any .NET tool, and the
+`conformance/source/` corpus is how another proves it reads a document the same way.
 
 Two formats exist because they answer to different masters. The built bundle is optimized for
 machines — flat, fully resolved, content-addressable. The source format is optimized for people,
@@ -295,8 +297,7 @@ Each rule carries exactly one action:
 - `error` — end this execution path as a failure. Shaped as the `WorkflowError` the run will
   report: `code` (a literal identifier, required), `message` (a text template) and `details` (a
   struct template), all rendered in the rule's scope, so a failure carries the reason the author
-  gave it. Every failure path that used to be `transition: { name: error }` is this.
-  **With no fields** (`- error`, `error:`), on `onFailure`, it re-raises the failure being handled
+  gave it. **With no fields** (`- error`, `error:`), on `onFailure`, it re-raises the failure being handled
   as it is — the same `code`, `message` and `details` — which is how a rule forwards a failure it
   has no reason to rename, such as a sub-workflow's. `onSuccess` and `onEmitted` have no failure
   in scope to re-raise, so there an `error` must carry a `code` (`UTOS-T005`). A `code` stays a
@@ -329,7 +330,7 @@ fan-out:
       startActivity: quote
       input: { sku: "{{ item.sku }}" }
   onSuccess:
-    - result: { quotes: "{{ output }}" }
+    - return: { quotes: "{{ output }}" }
 ```
 
 `branch.name` keys the promise output map and is unrelated to the document named. It is rendered
@@ -399,33 +400,18 @@ workflow and to the **producer** it is consuming:
 |---|---|---|
 | `handle` | Runs the named document for this value and waits for it to finish, then takes the next value. | Stays parked until the handler finishes, so values arrive one at a time and never pile up. |
 | `transition` | Continues at the named activity, in this workflow. | Cancelled. |
-| `result` | Ends, with that value as its result. | Cancelled. |
+| `return` | Ends, with that value as its result. | Cancelled. |
+| `error` | Fails, with that error. A bare `error` has nothing to re-raise here — `error` is `null` in an `onEmitted` rule — so it must carry a `code` (`UTOS-T005`). | Cancelled. |
 
-Only `handle` continues consuming. The other two leave the loop, and leaving it cancels the
+Only `handle` continues consuming. The other three leave the loop, and leaving it cancels the
 producer **at that point** rather than when this workflow eventually ends — nothing will observe it
 again, and a gated producer left running would sit on an acknowledgement that is never coming,
 holding an execution and a stream for as long as this workflow keeps going.
 
-Without those two a consumer has no way to stop consuming at all: its only exit is the producer
+Without them a consumer has no way to stop consuming at all: its only exit is the producer
 terminating, which for an intentionally endless poller never happens.
 
-**Migrating a consumer written before 0.0.13 — this one is silent.** `onEmitted` has had three
-shapes. Before 0.0.13 a rule was an ordinary transition rule, the same thing `onSuccess` carries,
-and `- transition: { name: process }` meant *handle this value at `process`, then come back* — that
-was how the consuming loop was closed. 0.0.13 made a rule a flat dispatch naming a document, which
-turned that spelling into an unknown field and rejected the document. 0.0.14 makes it **legal
-again, meaning the opposite**: stop consuming, and cancel the producer.
-
-So a pre-0.0.13 consumer does not fail against 0.0.14. It validates cleanly and quietly becomes a
-one-shot — handling the first value, cancelling its producer and finishing, where it used to loop
-indefinitely. 0.0.13 caught this by refusing the document; 0.0.14 cannot, and no rule code can,
-because the old spelling and the new one are the same word applied to the same field. It is worth
-grepping for, since nothing else will tell you.
-
-The migration is not textual. The activity the old rule transitioned to has to move into a document
-of its own, because `handle` names a document and `self` is not legal there (`UTOS-S011`).
-
-Note the two `result`s above mean the same thing and are reached differently: the one in
+Note the two `return`s above mean the same thing and are reached differently: the one in
 `onEmitted` fires on a value while the mailbox is still running, the one in `onSuccess` only once
 the mailbox has finished on its own. An action's meaning does not change with the list it appears
 in; what changes is when the list is evaluated.
@@ -439,7 +425,7 @@ ingest:
   body: '{"messages": {{ input.messages }}}'
 ```
 
-Three things follow from this being one ordered stream rather than a side channel:
+What follows from this being one ordered stream rather than a side channel:
 
 - **Order is structural.** Emitted values and the final result are entries in one stream walked by
   one cursor, so `onEmitted` fires for every value before `onSuccess` sees the result. A
@@ -471,40 +457,21 @@ over `ExecutionService.WatchOutput`.
 ### Templates
 
 String values may embed `{{ }}` expressions, and `condition` fields are bare expressions. The
-language — JavaScript, restricted to the subset in
-[`template-expressions.md`](template-expressions.md) — its forms, its grammar and the guarantees
-every implementation makes while evaluating it are defined there; this section defines what the
-expressions can see. Five context objects are available:
+language — JavaScript, restricted to a subset — the names an expression can see (`input`,
+`output`, `error`, `response`, `env`) and what each holds are defined in
+[`template-expressions.md`](template-expressions.md), § Scope in particular. This section shows how
+a document uses them.
 
-| Context | Meaning |
-|---|---|
-| `input` | What this activity received — the workflow input for the start activity, or the preceding transition's transform result |
-| `output` | The raw output of the activity the transition is leaving — for `http`, the parsed body when the response declared a JSON media type (`application/json` or `…+json`), and `null` otherwise. Meaningful on the success path; an activity that failed produced none |
-| `error` | Why the activity failed — `code`, `message` and `details`. Meaningful on the `onFailure` path |
-| `response` | The HTTP response, when the activity was `http` — `status`, `headers` (names lowercased: `response.headers['retry-after']`), and `body`, the bytes as a `Blob` whatever their type (`await response.body.text()` reads them). Available on **both** paths |
-| `env` | The run's ambient environment, supplied per execution (`utos run --env`) |
+`env` is supplied by whoever starts the run (`ScheduleExecutionRequest.env`; `utos run --env` in
+the reference CLI), the analogue of `docker run -e`. A document does not set it, but it should
+**declare what it requires** in `spec.env`, so that a run missing a variable is refused at
+schedule instead of rendering a URL with a hole in it
+([`workflow-schemas.md`](workflow-schemas.md)).
 
-`env` is per-run ambient state supplied by whoever starts the run — the analogue of
-`docker run -e` — and is always `string → string`. A document does not *set* it, but it may
-**declare what it requires** in `spec.env`, so that a run missing a variable is refused at schedule
-instead of rendering a URL with a hole in it. That declaration is deliberately not a closed one:
-`env` is shared across a run tree and a sub-workflow inherits its parent's, so a document names
-what it needs and ignores the rest. See [`workflow-schemas.md`](workflow-schemas.md).
-
-`error` is kept separate from `output` rather than replacing it, because a failed activity produced
-no output and overloading one name with the other's meaning would let a condition written for the
-success path silently read error fields on the failure path.
-
-**Every context is always defined, and so is every key within `error` and `response`** — with null
-values where they do not apply. A condition may therefore name `response.status` on an activity that
-made no request, or after a request that never got a response at all, and evaluate `false` rather
-than failing. Implementations must not leave these undefined: the failure that would raise is raised
-*while a failure is already being handled*, which is the worst moment for it.
-
-`error` and `response` describe the activity a transition is **leaving**. Neither is in scope when
-the *target* activity's own `url`, `headers` or `body` are rendered — that is a fresh scope of
-`input` and `env`. Anything a handler needs must be carried across in the transition's `input`
-transform:
+`output`, `error` and `response` describe the activity a rule is **leaving**. None of them is in
+scope when the *target* activity's own `url`, `headers` or `body` are rendered — that is a fresh
+scope of `input` and `env`. Anything the target needs is carried across in the transition's
+`input` transform:
 
 ```yaml
 onFailure:
@@ -542,13 +509,14 @@ puts one into a run or takes one out.
 
 ## Building a bundle
 
-The CLI turns a source document into a `WorkflowBundle`:
+A front end turns a source document into a `WorkflowBundle`:
 
 1. Parse the entry document and, recursively, every dependency.
 2. Compute each workflow's canonical identity from its own `metadata`.
-3. Rewrite every sub-workflow activity's `workflow` field — `workflow.call` and `workflow.spawn`
-   alike, since both carry it on the same `WorkflowActivityConfig` — from the **alias** to the
-   **canonical identity** of what that alias resolved to.
+3. Rewrite every place a document is named — a `workflow.call` or `workflow.spawn` activity's
+   `workflow`, a promise branch's `workflow`, and an `onEmitted` rule's `handle.workflow` — from
+   the **alias** to the **canonical identity** of what it resolved to, and `self` to this
+   document's own. A bundle names documents only by canonical identity (`UTOS-B006`).
 4. Empty each `spec.dependencies` map. Aliases have served their purpose, and leaving them would
    make two builds of the same logical workflow hash differently.
 5. Set `entryPoint` to the entry document's canonical identity and key every workflow in
@@ -577,6 +545,8 @@ Source-format errors detected during this pass — as distinct from the bundle r
 
 `UTOS-S004` covers every place a document is named — a `workflow.call` or `workflow.spawn`
 activity, a promise branch, and an `onEmitted` rule — because they all resolve the same way.
+`UTOS-S011` is the exception to that symmetry: only a promise branch may write `self`. See
+[`self`](#self) for why the one place it is load-bearing is also the only place it is safe.
 
 **A `UTOS-S###` code names a defect in a document.** An implementation's own limitations are not
 rules and take no code: a feature it has not built, a reference kind it cannot yet resolve, a
@@ -589,8 +559,6 @@ every implementation shares and every author may rely on.
 "registry resolution is not implemented yet", which is precisely the case above, and versions
 carrying that code are in the wild. Allocating it to a real rule later would give one identifier
 two meanings.
-`UTOS-S011` is the exception to that symmetry: only a promise branch may write `self`. See
-[`self`](#self) for why the one place it is load-bearing is also the only place it is safe.
 
 `UTOS-S012`–`UTOS-S015` belong to the **short form** of
 [`workflow-schemas.md`](workflow-schemas.md), which exists only here: a bundle carries plain JSON
@@ -692,3 +660,24 @@ Built bundle, in the canonical JSON form of
 
 Note the alias `emailer` is gone — replaced by `acme/send-email:2.1.0` — and `dependencies` with
 it.
+
+## Migrating
+
+Non-normative. What changes for a document written against an earlier version.
+
+### A consumer written before 0.0.13
+
+**This one is silent.** `onEmitted` has had three shapes. Before 0.0.13 a rule was an ordinary transition rule, the same thing `onSuccess` carries,
+and `- transition: { name: process }` meant *handle this value at `process`, then come back* — that
+was how the consuming loop was closed. 0.0.13 made a rule a flat dispatch naming a document, which
+turned that spelling into an unknown field and rejected the document. 0.0.14 makes it **legal
+again, meaning the opposite**: stop consuming, and cancel the producer.
+
+So a pre-0.0.13 consumer does not fail against 0.0.14. It validates cleanly and quietly becomes a
+one-shot — handling the first value, cancelling its producer and finishing, where it used to loop
+indefinitely. 0.0.13 caught this by refusing the document; 0.0.14 cannot, and no rule code can,
+because the old spelling and the new one are the same word applied to the same field. It is worth
+grepping for, since nothing else will tell you.
+
+The migration is not textual. The activity the old rule transitioned to has to move into a document
+of its own, because `handle` names a document and `self` is not legal there (`UTOS-S011`).

@@ -20,8 +20,8 @@ only two ways to carry a type it doesn't have, and both are wrong.
 - **Beside the value, as a list of the paths that are blobs.** This works, but every new type
   needs another list, and the list and the value can disagree.
 
-So the type goes **in the structure**. A `WorkflowValue` is a `oneof`, and a blob is a case of it just as
-a string is. A map may hold any key. `{ "$blob": … }` in a response is an ordinary map with one
+So the type goes **in the structure**. A `WorkflowValue` is a `oneof`, and a blob is a case of it
+just as a string is. A map may hold any key. `{ "$blob": … }` in a response is an ordinary map with one
 entry, everywhere, with no escaping.
 
 **Type is structure, never content.** This is the rule this document exists to state, and it holds
@@ -93,8 +93,8 @@ a separate question, and it is not opened here.
 Inside an implementation, values are also carried between activities, into sub-workflows, and in
 the durable history. How an implementation encodes them there is its own business, **as long as
 the encoding is unambiguous**, so that a value read back has the kind it had when written. The
-protobuf binary and JSON forms of `WorkflowValue` both qualify, because every node is wrapped in its case.
-A plain-JSON encoding with blobs tagged by a key does not, for the reason at the top of this
+protobuf binary and JSON forms of `WorkflowValue` both qualify, because every node is wrapped in its
+case. A plain-JSON encoding with blobs tagged by a key does not, for the reason at the top of this
 document.
 
 ## JSON
@@ -103,13 +103,13 @@ People and tools write JSON: `utos run --input '{…}'`, a fixture, an HTTP API 
 daemon. Two conversions are defined, and every tool that offers them must implement them exactly
 as follows, so that a document one tool accepts means the same thing in another.
 
-**JSON → WorkflowValue** is total and never produces a blob. `null`, booleans, strings, arrays and objects
-map to their kinds. A number maps to the nearest double. An object holding the key `$blob`, or any
+**JSON → WorkflowValue** is total and never produces a blob. `null`, booleans, strings, arrays and
+objects map to their kinds. A number maps to the nearest double. An object holding the key `$blob`, or any
 other key, is a map. A blob in a client's input is placed there as a blob, by the client's own API
 (see [`binary-data.md` § Into a run](binary-data.md#into-a-run)). It is never spelled in JSON.
 
-**WorkflowValue → JSON** is lossless for a value that contains no blob. Numbers are written in shortest
-round-trip form (`5`, not `5.0`), as interpolation renders them. **A value that contains a blob has
+**WorkflowValue → JSON** is lossless for a value that contains no blob. Numbers are written in
+shortest round-trip form (`5`, not `5.0`), as interpolation renders them. **A value that contains a blob has
 no plain-JSON form.** A tool that has to write one as text uses the protobuf JSON mapping of
 `WorkflowValue`, which is unambiguous and round-trips:
 
@@ -143,13 +143,24 @@ and `H0##`/`H1##` split elsewhere.
 A daemon never *produces* a malformed value: every value it writes came out of an expression, a
 response, or a check like this one.
 
+**At `ScheduleExecution` the checks run in stages**, and a request that fails one stage is refused
+with every failure of that stage, before the next runs:
+
+1. Every value is well-formed — `UTOS-V1##`, above.
+2. Every blob can be attached to the new run — `UTOS-F104`
+   ([`binary-data.md` § Into a run](binary-data.md#into-a-run)).
+3. The input and environment satisfy what the workflow declares — `UTOS-H101`, `UTOS-H102`
+   ([`workflow-schemas.md`](workflow-schemas.md)). The schemas therefore see blobs as blobs.
+
+All three are `INVALID_ARGUMENT` carrying `google.rpc.BadRequest`, so a client handles them alike.
+
 ## Implementation notes
 
 Non-normative.
 
 **The conversions belong in the SDK.** JSON → `WorkflowValue`, `WorkflowValue` → JSON and the
-well-formedness check are small, and every tool needs them identically. The .NET SDK ships them
-beside the generated types.
+well-formedness check are small, and every tool needs them identically, so they belong beside the
+generated types in each SDK rather than in each tool.
 
 **The names are prefixed on purpose.** `WorkflowValue`, `WorkflowList` and `WorkflowMap` mirror
 `google.protobuf.Value`, `ListValue` and `Struct` in shape, but not in name. Code that handles a
@@ -158,5 +169,5 @@ in two imported namespaces are a compile error in every such file. The oneof cas
 (`map_value`, `blob_value`…) do follow Google's, so the protobuf JSON of the two reads alike.
 
 **Converting into an expression engine** follows the table above. Lists and maps become frozen
-arrays and plain objects. A blob becomes a host `Blob` or `File` object. Numbers go through the
-same narrowing as before. Converting back is § Results in `template-expressions.md`.
+arrays and plain objects, a number a JavaScript number, and a blob a host `Blob` or `File`
+object. Converting back is § Results in `template-expressions.md`.

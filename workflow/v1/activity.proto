@@ -78,7 +78,7 @@ message ActivitySchema {
   google.protobuf.Struct input = 1;
 }
 
-// Defines a conditional transition rule with an action (transition, result, or emit)
+// A conditional rule with exactly one action: transition, result, emit or error.
 message TransitionRule {
   // A bare expression that must evaluate to exactly true or false — e.g.
   // `output.count > 10` — as docs/template-expressions.md defines. Not `{{ }}`-
@@ -236,7 +236,7 @@ message WorkflowActivityConfig {
   // In the source format: a dependency alias — a key in this workflow's
   // WorkflowSpec.dependencies map (e.g. "emailer").
   // In the built bundle: the sub-workflow's canonical identity — a key in
-  // WorkflowBundle.workflows (e.g. "registry.example.com/acme/send-email:v1.0.0").
+  // WorkflowBundle.workflows (e.g. "registry.example.com/acme/send-email:1.0.0").
   string workflow = 1;
 
   // Activity within the sub-workflow to start execution at
@@ -411,8 +411,10 @@ message PromiseBranch {
   // May reference `env` (the run's ambient environment) alongside the branch context
   optional string condition = 3;
 
-  // The document this branch runs — a `spec.dependencies` alias, or `self` for
-  // the document the promise is declared in. Required (UTOS-C501).
+  // The document this branch runs. In the source format, a `spec.dependencies`
+  // alias, or `self` for the document the promise is declared in; in the built
+  // bundle, its canonical identity — a key in WorkflowBundle.workflows
+  // (UTOS-B006). Required (UTOS-C501).
   //
   // This is the one place `self` is legal, and the reason it exists: recursive
   // fan-out is otherwise inexpressible, because a document reaching itself
@@ -432,23 +434,12 @@ message PromiseBranch {
   optional google.protobuf.Struct input = 7;
 }
 
-// A dispatch: run a document, starting from one of its activities.
-//
-// The same shape a PromiseBranch carries, minus the fan-out parts, and that
-// sameness is deliberate — dispatching work is one thing to learn, whether a
-// promise is fanning out over it or an emission handler is processing a value
-// with it. Neither names an activity in the dispatching document; both name a
-// document and where to enter it.
-//
-// Requiring a document is what keeps `spec.activities` honest. An activity that
-// existed only to serve a branch or a handler used to sit in the same flat map
-// as the main flow with nothing to mark it, and what it meant depended on where
-// it was used — running out of transitions ends a run on the main path but
-// finishes one iteration inside a handler. A reader who opens a dispatched
-// document now finds only that work.
-//
-// `workflow: self` covers the case the indirection existed to serve: dispatching
-// the current document, including recursively.
+// One rule of a `workflow.call` activity's `on_emitted` list, evaluated once per
+// value the callee emits, in stream order, with `output` bound to that value.
+// An optional condition and exactly one action: `handle` runs a document for
+// the value and comes back for the next; `transition`, `result` and `error`
+// stop consuming, and stopping cancels the producer. See
+// docs/execution-output-stream.md.
 message EmissionRule {
   // Optional; skip this rule if the condition evaluates to false. Rules are
   // evaluated in order and the first match wins, as elsewhere. A list where
@@ -520,27 +511,24 @@ message EmissionRule {
 //
 // A branch carries these fields flat while an emission rule nests them under
 // `handle`, which is the one asymmetry. A branch has no alternative actions, so
-// there is nothing for a wrapper to disambiguate; an emission rule has three,
+// there is nothing for a wrapper to disambiguate; an emission rule has four,
 // and the block is what makes the choice visible rather than something the
 // author has to know from the field names.
 //
-// Requiring a document is what keeps `spec.activities` honest. An activity that
-// existed only to serve a branch or a handler used to sit in the same flat map
-// as the main flow with nothing to mark it, and what it meant depended on where
-// it was used. A reader who opens a dispatched document now finds only that
-// work.
+// Requiring a document keeps each `spec.activities` map to one flow. Work that
+// exists only to serve a branch or a handler lives in a document of its own,
+// where running out of transitions finishes one iteration rather than ending a
+// run, and a reader of the main flow never mistakes it for a step.
 message HandlerDispatch {
-  // The document to dispatch — a `spec.dependencies` alias. Required
+  // The document to dispatch. In the source format, a `spec.dependencies`
+  // alias; in the built bundle, its canonical identity (UTOS-B006). Required
   // (UTOS-C501).
   //
   // `self` is **not** legal here (UTOS-S011). A handler in another document
   // cannot transition into the dispatching flow, because transitions do not
   // cross documents; a handler in the *same* document can, and re-entering the
   // call activity that dispatched it starts a second producer rather than
-  // resuming the first — once per value, without bound. That was the shape
-  // `on_emitted` handlers were written in before they became documents, so it
-  // is a mistake authors arrive at by leaving old text alone rather than by
-  // writing something new.
+  // resuming the first — once per value, without bound.
   //
   // A consumer that wants to reach its own flow says so with `transition`,
   // which is evaluated in its own execution and carries none of that risk.

@@ -43,6 +43,17 @@ release, and its latest `0.19.x` stays current.
 - **`UTOS-E031` is retired and not reused.** With `await` and `async` arrows admitted, nothing it refused is reachable: a generator is a `function*` (`UTOS-E002`) or a method (`UTOS-E020`), `yield` outside one is a parse error, `for await` is a loop (`UTOS-E001`)
 - **`UTOS-E051` (`instanceof`) is retired and not reused**, since `instanceof` is admitted
 
+### Fixed
+An end-to-end read of the spec, correcting text that had drifted from the protos, from the shared validator, or from itself. No rule changes meaning; where a sentence and an implementation disagreed, the implementation was already right.
+- **`UTOS-B006` names every place a bundle names a document** — `PromiseBranch.workflow` and `HandlerDispatch.workflow` as well as `WorkflowActivityConfig.workflow`. `UTOS-C503` already relied on it, and the shared validator already applied it
+- **An `onEmitted` rule has four actions, not three** (`docs/workflow-source-format.md`, `UTOS-C504`, the `EmissionRule` comment). `error` was in the proto and missing from every description; the `EmissionRule` comment itself still described the flat dispatch it was in 0.0.13
+- **Source examples wrote `result:`**, which the source format rejects as an unknown field. They write `return:`
+- **The build step rewrote aliases only on sub-workflow activities.** It rewrites every place a document is named, promise branches and `handle` included, and `self`
+- **Scope is defined once**, in `docs/template-expressions.md` § Scope, which now also says what `output` holds for each activity kind and in an `onEmitted` rule. The source format's § Templates keeps the authoring guidance and points there, rather than both documents half-defining the same names. A "dependency aliases" row that described no expression name is gone, as is `CallActivityConfig.input`, which does not exist (`input` is on `WorkflowActivityConfig`)
+- **`$ref` chains must terminate**, not "the graph must be acyclic" — two passages still said the latter after `0.19.0` corrected `UTOS-H006`
+- **The content digest's status** (`docs/canonical-bundle-digest.md`). A reference implementation exists (`ComputeContentDigest()` in `Utos.Workflow`); golden vectors do not, so the format is provisional, and a client must not send a digest *it computed* as a guard. The text had said to leave the digest empty, which nothing does
+- The README maps the spec — each document's role, an index of every rule-code family, the corpora and who runs them — and no longer lists a registry package or implementations as planned. History that had settled into normative text moved to § Migrating sections, and retired expression codes are one table
+
 ### Recorded, not specified
 - Resuming a response larger than one activity's timeout; importing an object already in the bucket, which needs an answer for objects that change under a replay; signed locations handed to activities; hashing a stored blob without materializing it; a response body as a `File` named by `content-disposition`
 

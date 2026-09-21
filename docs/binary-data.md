@@ -40,8 +40,8 @@ unless a workflow asked for it.
 ## At a glance
 
 - **`Blob`** is the value: an immutable sequence of bytes with a media type. **`File`** is a
-  `Blob` with a name. **`Buffer`** is bytes in memory inside an expression, as before, and still
-  cannot leave one.
+  `Blob` with a name. **`Buffer`** is bytes in memory inside an expression, and cannot leave
+  one.
 - `response.body` is a `Blob`. A blob crosses every boundary a value crosses: transitions,
   sub-workflows, promise branches, handlers, emitted values, results, and a run's input.
 - A blob is **inline** (bytes in the value) or **stored** (a handle to an object in storage). The
@@ -149,8 +149,8 @@ When a response arrives:
    lowercased, parameters kept), or `''` when the header is absent or unparsable. The body is a
    `Blob`, not a `File`, whatever `content-disposition` says.
 3. **`output` is the parsed JSON body when the media type's essence is `application/json` or ends
-   in `+json`**, and `null` otherwise. An empty or unparsable JSON body is also `null`, as it was
-   before this version. `output` never holds a blob. A JSON body is **also** available in
+   in `+json`**, and `null` otherwise. An empty or unparsable JSON body is also `null`. `output` never
+   holds a blob. A JSON body is **also** available in
    `response.body`, unchanged. That is what a webhook signature check needs, because re-serializing
    the parsed value would change the bytes that were signed.
 4. **The body is capped at the implementation's maximum body size.** A response that exceeds it is
@@ -171,15 +171,16 @@ A daemon with no store configured fails a response that crosses the threshold wi
 
 ### Sending a request body
 
-`HttpActivityConfig.body` is a text template, as before, with one addition:
+`HttpActivityConfig.body` is a text template
+([`template-expressions.md`](template-expressions.md#where-expressions-appear)), with one exception:
 
 - **A whole-field `body` whose value is a `Blob` sends that blob's bytes.** For example,
   `body: "{{ input.photo }}"`. An inline blob is written from memory. A stored blob is streamed
   from the store, with `content-length` taken from its `size`, so nothing is buffered.
 - **The request's `content-type`** is the author's declared header when there is one, the blob's
   `type` when it is not empty, and `application/octet-stream` otherwise. For a body that is not a
-  blob, the default stays `application/json`, as before.
-- **Any other value renders as text**, exactly as before. That includes a string, and an object or
+  blob, the default is `application/json`.
+- **Any other value renders as text.** That includes a string, and an object or
   array rendered as JSON.
 - **A blob anywhere else in a text field is `UTOS-E103`.** That covers a blob interpolated into a
   larger body, into a URL or into a header, and a blob nested inside an object that renders as
@@ -253,8 +254,9 @@ failing blob. `field` is the blob's JSON Pointer into the input, and `reason` is
 | `malformed` | An invariant of § A blob as a value does not hold |
 | `too_large` | An inline blob exceeds the inline threshold. Upload it instead |
 
-These checks run before the schema checks (`UTOS-H101`), which then see the blobs as blobs
-([`workflow-schemas.md` § Published types](workflow-schemas.md#published-types)). Each accepted
+They are the second of the three stages a schedule request passes
+([`workflow-values.md` § Well-formed values](workflow-values.md#well-formed-values)): after the
+values are checked well-formed, before the schemas (`UTOS-H101`), which then see blobs as blobs. Each accepted
 stored blob is **attached** to the new run tree and recorded in its history.
 
 ## Out of a run
@@ -501,7 +503,8 @@ could not otherwise tell apart.
 | `UTOS-F103` | A blob's bytes could not be read: it was deleted, it does not belong to this run tree, or the store failed after the implementation's own retries |
 | `UTOS-F104` | A blob in a new run's input cannot be attached. At `ScheduleExecution` this is `INVALID_ARGUMENT` with `google.rpc.BadRequest` (§ Into a run); at a `workflow.spawn`, the spawn activity fails |
 
-Four codes from the expression language cover the rest — three existing ones that gain a blob case, and one new static rule:
+Four codes from the expression language cover the rest — three existing ones that gain a blob
+case, and one new static rule:
 
 | Code | Blob case |
 |---|---|
@@ -518,7 +521,8 @@ occurrence. An implementation retries it as it retries any activity-level I/O, a
 
 - **`evaluation/`**: a blob in scope, inline and stored; `size`, `type`, `slice` (including that a
   slice reads only its range); `text()` and `bytes()`; the materialization limit; constructing
-  `Blob` and `File`; a blob leaving an expression as a value; a blob refusing implicit conversion;
+  `Blob` and `File`; `instanceof`; a blob leaving an expression as a value; a blob refusing implicit
+  conversion;
   and `response.bodyText` being retired. A case holding a blob is written in the wire form,
   as protobuf JSON of `WorkflowMap` and `WorkflowValue`, with the stored bytes beside it.
 - **`schema/`**: `utos:blob` and `utos:file`, `mediaType` including wildcards and lists, `maxSize`,
@@ -534,10 +538,10 @@ daemon. The reference daemon's integration suite covers it.
 
 ### An SDK
 
-- The generated `WorkflowValue` and `Blob` types, and the JSON conversions and well-formedness checks of
-  [`workflow-values.md`](workflow-values.md).
-- The static rules: `UTOS-E070`; `await` and `async` arrows admitted by the grammar; `new Blob` and
-  `new File` admitted by `UTOS-E040`'s allow-list.
+- The generated `WorkflowValue` and `Blob` types, and the JSON conversions and well-formedness
+  checks of [`workflow-values.md`](workflow-values.md).
+- The static rules: `UTOS-E070`; `await`, `async` arrows and `instanceof` admitted by the grammar;
+  `new Blob` and `new File` admitted by `UTOS-E040`'s allow-list.
 - The schema compiler: `type: blob` and `type: file`, `mediaType`, and `maxSize` with units.
 - The schema load rules: `UTOS-H015`.
 - If the SDK evaluates schemas against data, the blob-aware evaluation in `workflow-schemas.md`.
