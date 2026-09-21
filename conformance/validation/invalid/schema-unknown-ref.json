@@ -8,7 +8,7 @@
         "name": "resize",
         "namespace": "acme",
         "version": "1.0.0",
-        "description": "A $ref reaches this schema’s own $defs and the types the spec publishes; the published registry is empty in this version."
+        "description": "A $ref reaches this schema’s own $defs and the types the spec publishes; a utos: name the registry does not list is refused, not fetched."
       },
       "spec": {
         "activities": {
@@ -18,7 +18,7 @@
                 "type": "object",
                 "properties": {
                   "photo": {
-                    "$ref": "utos:blob"
+                    "$ref": "utos:bytes"
                   }
                 },
                 "unevaluatedProperties": false

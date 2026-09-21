@@ -479,9 +479,9 @@ expressions can see. Five context objects are available:
 | Context | Meaning |
 |---|---|
 | `input` | What this activity received — the workflow input for the start activity, or the preceding transition's transform result |
-| `output` | The raw output of the activity the transition is leaving. Meaningful on the success path; an activity that failed produced none |
+| `output` | The raw output of the activity the transition is leaving — for `http`, the parsed body when the response declared a JSON media type (`application/json` or `…+json`), and `null` otherwise. Meaningful on the success path; an activity that failed produced none |
 | `error` | Why the activity failed — `code`, `message` and `details`. Meaningful on the `onFailure` path |
-| `response` | The HTTP response, when the activity was `http` — `status`, `headers` (names lowercased: `response.headers['retry-after']`), `body` (the raw bytes, as a `Buffer`), `bodyText`. Available on **both** paths |
+| `response` | The HTTP response, when the activity was `http` — `status`, `headers` (names lowercased: `response.headers['retry-after']`), and `body`, the bytes as a `Blob` whatever their type (`await response.body.text()` reads them). Available on **both** paths |
 | `env` | The run's ambient environment, supplied per execution (`utos run --env`) |
 
 `env` is per-run ambient state supplied by whoever starts the run — the analogue of
@@ -514,6 +514,31 @@ onFailure:
       input:
         retryAfter: "{{ response.headers['retry-after'] }}"   # or it is gone
 ```
+
+The same holds for bytes. A body is carried to the next activity as a value, and a whole-field
+`body` that evaluates to a blob sends it — the pattern for fetching a file and uploading it
+somewhere else:
+
+```yaml
+activities:
+  fetch:
+    type: http
+    method: GET
+    url: "{{ input.source }}"
+    onSuccess:
+      - transition:
+          name: upload
+          input:
+            photo: "{{ response.body }}"     # a Blob, inline or stored — the same either way
+  upload:
+    type: http
+    method: PUT
+    url: "https://storage.example.com/photos/{{ input.photo.size }}.png"
+    body: "{{ input.photo }}"                # sends the bytes; content-type from the blob
+```
+
+See [`binary-data.md`](binary-data.md) for what a blob is, where its bytes live, and how a client
+puts one into a run or takes one out.
 
 ## Building a bundle
 
@@ -548,6 +573,7 @@ Source-format errors detected during this pass — as distinct from the bundle r
 | `UTOS-S012` | A schema declares one property twice, once required and once optional — `x` alongside `x?` |
 | `UTOS-S013` | A schema declares a `type` that is not in the type registry |
 | `UTOS-S014` | A schema uses a constraint key that is unknown, or that does not apply to the declared type |
+| `UTOS-S015` | A schema's `maxSize` is neither a non-negative integer nor a size with a recognised unit, or does not come to a whole number of bytes |
 
 `UTOS-S004` covers every place a document is named — a `workflow.call` or `workflow.spawn`
 activity, a promise branch, and an `onEmitted` rule — because they all resolve the same way.
@@ -566,7 +592,7 @@ two meanings.
 `UTOS-S011` is the exception to that symmetry: only a promise branch may write `self`. See
 [`self`](#self) for why the one place it is load-bearing is also the only place it is safe.
 
-`UTOS-S012`–`UTOS-S014` belong to the **short form** of
+`UTOS-S012`–`UTOS-S015` belong to the **short form** of
 [`workflow-schemas.md`](workflow-schemas.md), which exists only here: a bundle carries plain JSON
 Schema, so these are defects a bundle can no longer express and the rules therefore have to live
 in this range. Everything a bundle *can* still get wrong about a schema — a bad `$ref`, an unknown

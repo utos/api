@@ -1,5 +1,5 @@
-# `blob` is not in the type registry in this version — it arrives with binary
-# data. A type the registry does not list is a defect in the document.
+# `bytes` is not in the type registry: bytes are a `blob`, and a type the registry does not list is
+# a defect in the document, not a synonym to be guessed at.
 apiVersion: utos.io/v1
 kind: Workflow
 metadata:
@@ -11,5 +11,5 @@ spec:
       type: timer
       schema:
         input:
-          photo: { type: blob }
+          photo: { type: bytes }
       duration: 1s

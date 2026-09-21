@@ -41,7 +41,7 @@
                 }
               },
               {
-                "condition": "output.missing?.deep === 'x' || 'name' in output || typeof output.count === 'number'",
+                "condition": "output.missing?.deep === 'x' || 'name' in output || typeof output.count === 'number' || (input instanceof Object && output.items instanceof Array)",
                 "result": {
                   "decoded": "{{ Buffer.from(output.data, 'base64url').toString() }}",
                   "digest": "{{ crypto.createHmac('sha256', env.SECRET).update(output.data).digest('hex') }}",
@@ -62,7 +62,7 @@
             "onFailure": [
               {
                 "condition": "response.status === 429 || response.status >= 500",
-                "transition": { "name": "fetch", "input": { "retryAfter": "{{ response.headers['retry-after'] }}", "raw": "{{ response.body.toString('hex') }}" } }
+                "transition": { "name": "fetch", "input": { "retryAfter": "{{ response.headers['retry-after'] }}", "raw": "{{ (await response.body.slice(0, 64).bytes()).toString('hex') }}" } }
               }
             ]
           },

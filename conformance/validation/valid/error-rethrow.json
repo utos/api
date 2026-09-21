@@ -42,7 +42,7 @@
             "http": { "method": "POST", "url": "https://api.example.com/charges" },
             "onSuccess": [ { "result": {} } ],
             "onFailure": [
-              { "condition": "response.status === 402", "error": { "code": "CARD_DECLINED", "details": { "reason": "{{ response.bodyText }}" } } },
+              { "condition": "response.status === 402", "error": { "code": "CARD_DECLINED", "details": { "reason": "{{ await response.body.text() }}" } } },
               { "error": {} }
             ]
           }

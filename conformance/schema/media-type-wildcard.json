@@ -1,0 +1,43 @@
+{
+  "schema": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "$ref": "utos:blob",
+        "mediaType": "image/*"
+      },
+      "bad": {
+        "$ref": "utos:blob",
+        "mediaType": "image/*"
+      }
+    },
+    "unevaluatedProperties": false
+  },
+  "valueWire": {
+    "fields": {
+      "ok": {
+        "blobValue": {
+          "data": "iVBORw0KGgo=",
+          "size": "8",
+          "mediaType": "image/png"
+        }
+      },
+      "bad": {
+        "blobValue": {
+          "data": "JVBERg==",
+          "size": "4",
+          "mediaType": "application/pdf"
+        }
+      }
+    }
+  },
+  "expect": {
+    "valid": false,
+    "errors": [
+      {
+        "instanceLocation": "/bad",
+        "keyword": "mediaType"
+      }
+    ]
+  }
+}

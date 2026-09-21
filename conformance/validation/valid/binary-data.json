@@ -1,0 +1,81 @@
+{
+  "entryPoint": "acme/archive:1.0.0",
+  "workflows": {
+    "acme/archive:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "archive",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "Blobs declared, passed on, sent as a body and read with await — everything 0.20.0 admits that 0.19 refused."
+      },
+      "spec": {
+        "output": {
+          "type": "object",
+          "required": ["receipt"],
+          "properties": {
+            "receipt": { "$ref": "utos:file", "mediaType": ["application/pdf", "text/*"] }
+          },
+          "unevaluatedProperties": false
+        },
+        "activities": {
+          "fetch": {
+            "schema": {
+              "input": {
+                "type": "object",
+                "required": ["source"],
+                "properties": {
+                  "source": { "type": "string", "format": "uri" },
+                  "attachments": { "type": "array", "items": { "$ref": "utos:blob", "maxSize": 10485760 } }
+                },
+                "unevaluatedProperties": false
+              }
+            },
+            "http": { "method": "GET", "url": "{{ input.source }}" },
+            "onSuccess": [
+              {
+                "condition": "response.body.type.startsWith('image/') && (await response.body.slice(0, 8).bytes()).readUInt8(0) === 137",
+                "transition": {
+                  "name": "upload",
+                  "input": {
+                    "photo": "{{ response.body }}",
+                    "notes": "{{ await (input.attachments ?? []).reduce(async (acc, f) => [...await acc, await f.text()], []) }}"
+                  }
+                }
+              }
+            ],
+            "onFailure": [
+              { "condition": "response.status === 400", "error": { "code": "REJECTED", "details": { "reason": "{{ await response.body.text() }}" } } }
+            ]
+          },
+          "upload": {
+            "schema": {
+              "input": {
+                "type": "object",
+                "required": ["notes", "photo"],
+                "properties": {
+                  "photo": { "$ref": "utos:blob", "mediaType": "image/*" },
+                  "notes": { "type": "array", "items": { "type": "string" } }
+                },
+                "unevaluatedProperties": false
+              }
+            },
+            "http": {
+              "method": "PUT",
+              "url": "https://storage.example.com/photos/{{ input.photo.size }}",
+              "body": "{{ input.photo }}"
+            },
+            "onSuccess": [
+              {
+                "result": {
+                  "receipt": "{{ new File([`stored ${input.photo.size} bytes; `, input.notes.join('; ')], 'receipt.txt', { type: 'text/plain' }) }}"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

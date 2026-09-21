@@ -344,6 +344,11 @@ The schema slots are the exception to "not otherwise inspected": `ActivitySchema
 `WorkflowSpec.output`, `WorkflowSpec.emits` and `WorkflowSpec.env` are `Struct`s whose *content*
 is a specified document, and `UTOS-H0##` inspects it.
 
+These `Struct`s are *templates*, and `UTOS-V0##` covers them. A run's own values — its input, its
+results, its emitted values — are `utos.workflow.v1.WorkflowValue`s, which never appear in a bundle, and
+their rules are `UTOS-V1##` in [`workflow-values.md`](workflow-values.md). A template may contain
+any key, `$blob` included: nothing in a bundle is a blob, and no key is reserved.
+
 ## Conformance
 
 `conformance/validation/` holds the cross-implementation fixtures:

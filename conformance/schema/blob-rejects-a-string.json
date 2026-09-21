@@ -1,0 +1,5 @@
+{
+  "schema": { "type": "object", "properties": { "photo": { "$ref": "utos:blob" } }, "unevaluatedProperties": false },
+  "value": { "photo": "iVBORw0KGgo=" },
+  "expect": { "valid": false, "errors": [ { "instanceLocation": "/photo", "keyword": "type" } ] }
+}

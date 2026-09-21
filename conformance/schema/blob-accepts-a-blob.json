@@ -1,0 +1,28 @@
+{
+  "schema": {
+    "type": "object",
+    "required": [
+      "photo"
+    ],
+    "properties": {
+      "photo": {
+        "$ref": "utos:blob"
+      }
+    },
+    "unevaluatedProperties": false
+  },
+  "valueWire": {
+    "fields": {
+      "photo": {
+        "blobValue": {
+          "data": "iVBORw0KGgo=",
+          "size": "8",
+          "mediaType": "image/png"
+        }
+      }
+    }
+  },
+  "expect": {
+    "valid": true
+  }
+}

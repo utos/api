@@ -1,0 +1,22 @@
+# `blob` and `file` are short-form types like any other. They compile to a `$ref` to a published
+# type, `maxSize` is always bytes in the bundle whatever unit the author wrote, and `nullable`
+# wraps the reference with the constraints kept inside it.
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: archive
+  version: 1.0.0
+spec:
+  output:
+    receipt: { type: file }
+  activities:
+    store:
+      type: http
+      schema:
+        input:
+          photo:      { type: blob, mediaType: "image/*", maxSize: 10MiB }
+          contract:   { type: file, mediaType: [application/pdf, image/tiff], maxSize: "1.5 KB" }
+          thumbnail?: { type: blob, nullable: true, maxSize: 2048 }
+      method: PUT
+      url: https://storage.example.com/archive
+      body: "{{ input.photo }}"

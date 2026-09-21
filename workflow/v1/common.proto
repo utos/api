@@ -23,5 +23,10 @@ message WorkflowError {
   string message = 2;
 
   // Additional structured details. As an authored action, a struct template.
+  //
+  // Stays a Struct, unlike the other values a run reports, because this
+  // message is also the authored action and a bundle carries templates. Details
+  // are therefore plain JSON: a blob rendered into them is UTOS-E103. An error
+  // explains a failure; it does not carry a payload.
   optional google.protobuf.Struct details = 3;
 }
