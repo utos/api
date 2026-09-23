@@ -13,10 +13,14 @@ minor, so `0.19.x` in `utos/dapr-daemon`, `utos/cli` or `utos/sdk-dotnet` all
 mean *implements spec 0.19*. A repo with nothing to change simply does not
 release, and its latest `0.19.x` stays current.
 
-## [0.20.1] - 2026-09-23
+## [0.20.2] - 2026-09-23
 
 ### Fixed
 - **A fixture for `UTOS-E070` asked for more than the rule promises.** It destructured a retired member through an arrow parameter — `(({ bodyText }) => …)(response)` — which is dataflow rather than a spelling a parser can see, and the rule deliberately stops at what is certain: a member expression on the scope name, or `const { bodyText } = response`. The spelling the rule names is what the fixture now uses; the arrow form is caught at evaluation by the throwing member (`UTOS-E120`), as the spec says
+
+## [0.20.1] - 2026-09-23
+
+### Fixed
 - **Two conformance fixtures asserted the spec 0.20.0 retired or renamed**, so every implementation would have failed them: `emission-rule-without-action` expected `UTOS-C504`, which 0.20.0 retires, and `dispatch-bad-start-activity` expected a path through `handle`, which is now a rule's `workflow.call` effect. The first is renamed `onemitted-rule-without-effect-or-exit` and expects the reworded `UTOS-T001`, which is what an `onEmitted` rule carrying neither now breaks. Found by the first implementation to run the corpus
 
 ## [0.20.0] - 2026-09-23
