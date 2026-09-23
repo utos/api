@@ -1,7 +1,7 @@
 {
   "issues": [
     {
-      "code": "UTOS-C504",
+      "code": "UTOS-T001",
       "path": "workflows[\"acme/watcher:1.0.0\"].spec.activities[\"watch\"].workflow.call.onEmitted[0]"
     }
   ]
