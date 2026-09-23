@@ -13,6 +13,15 @@ what `Blob` and `File` offer inside `{{ }}` — belongs to the language, so it i
 [`template-expressions.md` § Blob and File](template-expressions.md#blob-and-file) and only
 summarized here.
 
+**In this document.** [At a glance](#at-a-glance) is the summary;
+[The types](#the-types) and [A blob as a value](#a-blob-as-a-value) are what a blob *is*;
+[The HTTP activity](#the-http-activity), [Moving blobs](#moving-blobs), [Into a run](#into-a-run)
+and [Out of a run](#out-of-a-run) are how bytes travel; [Retention](#retention) and
+[History](#history) are how long they live and what is recorded;
+[The BlobService](#the-blobservice) and [Storage](#storage) are the daemon's side;
+[Limits and configuration](#limits-and-configuration), [Codes](#codes) and
+[Implementing](#implementing) close it.
+
 ## The problem, and the constraints on any answer
 
 Before 0.20.0 a workflow could read an HTTP response's bytes as a `Buffer`, and could do nothing

@@ -11,6 +11,14 @@ in the middle rather than at the door, and a registry has nothing to show. A dec
 that, and it is also what makes anything further possible: without one, every value is "some
 JSON" and there is nothing for a tool to reason about.
 
+**In this document.** [What is declared, and where](#what-is-declared-and-where) and
+[The dialect](#the-dialect) set the ground; [Authoring](#authoring) is the short form an author
+writes; [The type registry](#the-type-registry) is what may be declared, including `blob`, `file`
+and `duration`; [Defaults](#defaults), [Where a declaration is checked](#where-a-declaration-is-checked)
+and [What a failure reports](#what-a-failure-reports) are the run-time half. The two code ranges
+and [Limits](#limits) follow, then [Reuse](#reuse), [Identity](#identity) and
+[Conformance](#conformance).
+
 ## What is declared, and where
 
 | Slot | Declares | Wire |

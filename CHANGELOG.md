@@ -54,7 +54,11 @@ release, and its latest `0.19.x` stays current.
 - **`UTOS-E051` (`instanceof`) is retired and not reused**, since `instanceof` is admitted
 
 ### Fixed
-An end-to-end read of the spec, correcting text that had drifted from the protos, from the shared validator, or from itself. No rule changes meaning; where a sentence and an implementation disagreed, the implementation was already right.
+Two end-to-end reads of the spec, correcting text that had drifted from the protos, from the shared validator, or from itself. No rule changes meaning; where a sentence and an implementation disagreed, the implementation was already right.
+- **One vocabulary for a rule.** A rule has an *effect* and an *exit*; "action" survived in a dozen places after the shape changed, including the build step that still rewrote an `onEmitted` rule's `handle.workflow`, a key that no longer exists
+- **The source format reads in the order it is used.** The `type` discriminator's derivation and the normative mapping move into § Building a bundle, which now says it is for implementers, and the worked example comes before it. Each long document opens with a map of its sections. What an author needs — the activity kinds and their fields — stays in § Activities, as one table rather than two
+- **The stream's guarantees are stated once**, in `execution-output-stream.md`. The source format restated ordering, back-pressure, the relay and subscription lifetime, which is how the two came to describe the same thing in different words; it now shows the syntax and points there. That document also names the **handler** where it defines it, rather than assuming the word
+- **Two more `v`-prefixed example versions** (`workflow/v1/bundle.proto`, `workflow.proto`), which `UTOS-M005` forbids, and a bundle description that credited the CLI with building bundles and named only one of the three places a bundle names a document
 - **`UTOS-B006` names every place a bundle names a document** — `PromiseBranch.workflow` and `HandlerDispatch.workflow` as well as `WorkflowActivityConfig.workflow`. `UTOS-C503` already relied on it, and the shared validator already applied it
 - **An `onEmitted` rule has four actions, not three** (`docs/workflow-source-format.md`, `UTOS-C504`, the `EmissionRule` comment). `error` was in the proto and missing from every description; the `EmissionRule` comment itself still described the flat dispatch it was in 0.0.13
 - **Source examples wrote `result:`**, which the source format rejects as an unknown field. They write `return:`

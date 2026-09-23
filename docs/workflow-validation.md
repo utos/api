@@ -271,7 +271,7 @@ cannot transition into the consumer's flow, and it has no `result` to end the co
 | `UTOS-C501` | `workflow` is required and non-empty |
 | `UTOS-C502` | `startActivity` is required and non-empty |
 | `UTOS-C503` | `startActivity` must name an activity in the dispatched workflow |
-| ~~`UTOS-C504`~~ | *Retired in 0.20.0, not to be reused.* A `call.onEmitted` rule had to carry an action |
+| ~~`UTOS-C504`~~ | *Retired in 0.20.0, not to be reused.* A `call.onEmitted` rule had to carry an action, when such a rule was a message of its own |
 
 A **dispatch** is "run this document, starting here": a `promise.branches` entry and a rule's
 `workflow.call` effect, which carry the same three fields and mean the same thing by them. `UTOS-C501`–`UTOS-C503` check a dispatch wherever one appears; a branch declares those fields
