@@ -28,11 +28,13 @@
                     }
                   },
                   {
-                    "handle": {
-                      "workflow": "acme/ingester:1.0.0",
-                      "startActivity": "ingest",
-                      "input": {
-                        "messages": "{{ output.messages }}"
+                    "workflow": {
+                      "call": {
+                        "workflow": "acme/ingester:1.0.0",
+                        "startActivity": "ingest",
+                        "input": {
+                          "messages": "{{ output.messages }}"
+                        }
                       }
                     }
                   }
@@ -112,14 +114,12 @@
               {
                 "condition": "output.messages.length > 0",
                 "emit": {
-                  "value": {
-                    "messages": "{{ output.messages }}"
-                  },
-                  "transition": {
-                    "name": "wait",
-                    "input": {
-                      "cursor": "{{ output.cursor }}"
-                    }
+                  "messages": "{{ output.messages }}"
+                },
+                "transition": {
+                  "name": "wait",
+                  "input": {
+                    "cursor": "{{ output.cursor }}"
                   }
                 }
               },

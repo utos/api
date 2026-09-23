@@ -207,7 +207,7 @@ A blob goes wherever a value goes, and nothing about it changes on the way:
 ### Run trees
 
 A **run tree** is a root execution together with every execution started beneath it by
-`workflow.call`, a promise branch, or an `onEmitted` `handle`. `workflow.spawn` starts a **new** run
+`workflow.call`, a promise branch, or a rule's `workflow.call` effect. `workflow.spawn` starts a **new** run
 tree: the spawned execution is an independent top-level run, as it is everywhere else in the spec.
 
 A stored blob **belongs to** every run tree that produced it or had it attached.

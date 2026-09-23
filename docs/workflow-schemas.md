@@ -284,10 +284,13 @@ spec owns both, and adding a type is a spec release.
 | `null` | null | `null` | Distinct from absent |
 | `blob` | a blob (`WorkflowValue.blob_value`) | `Blob` | Bytes with a media type; a `File` is a `blob` too. Published type `utos:blob` |
 | `file` | a blob with a `name` | `File` | A `blob` that has a name. Published type `utos:file` |
+| `duration` | string | string | A length of time in the unit shorthand — `90s`, `1h30m` ([`workflow-source-format.md` § Durations](workflow-source-format.md#durations)). Published type `utos:duration` |
 
-The first seven are JSON's own and compile to JSON Schema's `type` keyword. `blob` and `file` are
-not JSON types: they compile to a `$ref` to a published type (§ Published types), and they are what
-[`binary-data.md`](binary-data.md) defines.
+The first seven are JSON's own and compile to JSON Schema's `type` keyword. The last three compile
+to a `$ref` to a published type (§ Published types). `blob` and `file` are not JSON types at all,
+and are what [`binary-data.md`](binary-data.md) defines; `duration` **is** a string, and the
+published type is what makes it a *checked* one, so a caller passing `"8 hours"` is refused at the
+door rather than when the timer is entered.
 
 **`number` and `integer` are two declared types and one runtime type.** Zod makes the same split —
 `z.number()` and `z.int()` are separate schemas over one JavaScript `number` — and it is the right
@@ -327,10 +330,16 @@ I/O and a registry outage cannot stop a workflow loading.
 |---|---|
 | `utos:blob` | A blob, with or without a name |
 | `utos:file` | A blob with a name — a `File` |
+| `utos:duration` | A string in the duration syntax, positive |
 
 A `utos:` name outside this table is `UTOS-H005`. The registry grows by spec release.
 
-A published type is **not a JSON Schema document** an implementation could write down and evaluate
+`utos:duration` is the one published type a stock validator could express — it is
+`{ "type": "string", "pattern": … }` — and it is published anyway, so that one parser decides what
+a duration is, and a document says `type: duration` rather than carrying a regular expression
+nobody reads.
+
+The other two are **not JSON Schema documents** an implementation could write down and evaluate
 with a stock validator. A blob is not JSON (§ Blobs in a schema), and no set of JSON keywords could
 tell one from a map shaped like a handle — which is the confusion
 [`workflow-values.md`](workflow-values.md) exists to rule out. An implementation evaluates each
@@ -477,10 +486,10 @@ Filling a default is the one place a schema touches data. The rules that keep it
 | Emit | Each emitted value | `spec.emits` | `UTOS-H106`, and the run fails |
 
 **"Invocation" is every construct that starts a document with an input**: a `workflow.call` or
-`workflow.spawn` activity, a promise branch, and an `onEmitted` rule's `handle`.
+`workflow.spawn` activity, a promise branch, and a rule's `workflow.call` effect.
 
 The word is not *dispatch*, deliberately. `workflow-validation.md` defines a dispatch narrowly —
-a promise branch and a `handle` block, the two that name a document and have no activity of their
+a promise branch and a `workflow.call` effect, the two that name a document and have no activity of their
 own — and holds a `workflow.call` apart from it, which is the whole reason `UTOS-C401`–`C403` sit
 beside `UTOS-C501`–`C503`. That distinction is about *whose flow the work belongs to*, and it is
 worth keeping. This boundary does not care: all four supply a document's start activity with a
@@ -510,7 +519,7 @@ not re-derive it.
 |---|---|
 | `UTOS-H101`, `UTOS-H102` | No run exists yet. `ScheduleExecution` returns `INVALID_ARGUMENT`, with the failures as `google.rpc.BadRequest` |
 | `UTOS-H103` | **No.** The run fails |
-| `UTOS-H104` | Yes, by the invoking construct — a `workflow.call` or `workflow.spawn` activity's `onFailure`, a promise branch failing its promise, a `handle` failing its consumer |
+| `UTOS-H104` | Yes, by the invoking construct — a `workflow.call` or `workflow.spawn` activity's `onFailure`, a promise branch failing its promise, a `workflow.call` effect failing its consumer |
 | `UTOS-H107` | As the boundary it occurred at: at schedule it is `INVALID_ARGUMENT`, elsewhere it is that boundary's failure |
 | `UTOS-H105`, `UTOS-H106` | **No.** The run fails |
 

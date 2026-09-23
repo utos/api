@@ -1,0 +1,8 @@
+{
+  "issues": [
+    {
+      "code": "UTOS-S009",
+      "path": "spec.activities[\"poll\"].onSuccess[0]"
+    }
+  ]
+}

@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package utos.workflow.v1;
 
-import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "workflow/v1/common.proto";
 
@@ -78,22 +77,54 @@ message ActivitySchema {
   google.protobuf.Struct input = 1;
 }
 
-// A conditional rule with exactly one action: transition, result, emit or error.
+// One rule, in any list: an optional condition, at most one **effect** — what
+// happens — and at most one **exit** — where the run goes next. A rule with
+// neither is rejected (UTOS-T001).
+//
+// The same message serves every list, so a rule reads the same wherever it
+// appears. The lists differ only in whether an exit is required: `on_success`
+// and `on_failure` end the activity, so the run must go somewhere, while an
+// `on_emitted` rule runs once per value and an exit is what stops consuming.
+// See docs/workflow-source-format.md § Transitions.
 message TransitionRule {
+  // Former EmitAction `emit` (which carried its own transition) and the
+  // `action` oneof that held it.
+  reserved 4;
+
   // A bare expression that must evaluate to exactly true or false — e.g.
   // `output.count > 10` — as docs/template-expressions.md defines. Not `{{ }}`-
   // wrapped (UTOS-E061). If empty/omitted, the rule always matches (a fallback).
   // Available context: `input` (data the source activity received),
-  // `output` (raw output from the source activity's execution),
-  // `env` (the run's ambient environment map, available to every activity),
+  // `output` (raw output from the source activity's execution, or the emitted
+  // value in an `on_emitted` rule), `env` (the run's ambient environment map),
   // `response` and `error` — always defined, null where they do not apply.
   optional string condition = 1;
 
-  // Action to take when this rule matches. Exactly one (UTOS-T001).
-  oneof action {
-    // Transition to another activity in this workflow. Since 0.0.16 a target is
-    // always an activity: the former `end` and `error` keywords are `result`
-    // and `error` below, so a name is never ambiguous.
+  // What this rule does. At most one, structurally rather than by rule: two
+  // effects would need an order the document cannot express.
+  oneof effect {
+    // Append this value to the execution's output stream and carry on. Leaf
+    // string values may contain {{ }} template expressions, resolved in the
+    // same context as this rule's condition.
+    //
+    // A caller that invoked this workflow with `workflow.call` and declared
+    // `on_emitted` is a privileged consumer: the emit does not complete until
+    // that consumer's cursor advances past the entry, which bounds the
+    // unconsumed buffer to one entry. With no privileged consumer the emit
+    // completes as soon as the entry is durable. See
+    // docs/execution-output-stream.md.
+    google.protobuf.Struct emit = 6;
+
+    // Run a document. In the source format the mode is part of the key, as it
+    // is in an activity's `type`: `workflow.call`.
+    DispatchEffect workflow = 7;
+  }
+
+  // Where the run goes when this rule matches. At most one.
+  oneof exit {
+    // Transition to another activity in this workflow (UTOS-T003). A target is
+    // always an activity: ending a path is `result` and failing it is `error`,
+    // so a name is never ambiguous.
     TransitionTarget transition = 2;
 
     // End this execution path, returning this value. Appends the terminal entry
@@ -102,14 +133,10 @@ message TransitionRule {
     // the source format spells both as `return`.
     google.protobuf.Struct result = 3;
 
-    // Append a value to this execution's output stream and keep going.
-    EmitAction emit = 4;
-
     // End this execution path as a failure, with this error. The run reports
     // exactly what the author wrote: `code` is a literal identifier (required,
     // UTOS-T005); `message` is a text template and `details` a struct template,
-    // rendered in the same context as the condition. Replaces the former
-    // `transition: { name: error }`, which could carry no reason.
+    // rendered in the same context as the condition.
     //
     // An EMPTY WorkflowError in an `on_failure` rule re-raises the failure being
     // handled, as it is — its `code`, `message` and `details` — and is legal
@@ -118,27 +145,23 @@ message TransitionRule {
   }
 }
 
-// Appends a value to this execution's output stream, then transitions.
+// Running a document as an effect: the same behaviours the sub-workflow
+// activity kinds have, available inside a rule.
 //
-// `result` is emit-and-terminate; `emit` is emit-and-continue. A workflow that
-// emits N times and then returns produces a stream of N value entries followed
-// by one terminal entry, which is what lets a caller consume values in order
-// and still observe the final result — see docs/execution-output-stream.md.
-//
-// A caller that invoked this workflow with `workflow.call` and declared
-// `on_emitted` is a privileged consumer: the emit does not complete until that
-// consumer's cursor advances past the entry. That bounds the unconsumed buffer
-// to one entry, so a producer faster than its consumer cannot grow the durable
-// stream without limit. With no privileged consumer the emit completes as soon
-// as the entry is durable.
-message EmitAction {
-  // The value to append. Leaf string values may contain {{ }} template
-  // expressions, resolved in the same context as a TransitionRule condition.
-  google.protobuf.Struct value = 1;
+// A rule that ends an activity could transition to a `workflow.call` activity
+// instead; a rule that does not end one — `on_emitted` — has nowhere to
+// transition to, which is why dispatch exists here at all.
+message DispatchEffect {
+  // Field 2 is left free for `spawn`, which starts a run without waiting for
+  // it (plans: spawn-action.md).
 
-  // Where to go after emitting. Required — an emit is not a terminal action, so
-  // a rule that emits and goes nowhere is a dead end rather than a return.
-  TransitionTarget transition = 2;
+  oneof mode {
+    // Run the document and wait for it to finish, then carry on with this rule's
+    // exit, if it has one. In an `on_emitted` rule this is the body of the
+    // consuming loop: the call finishes one iteration and the next value is
+    // taken. Formerly spelled `handle`.
+    HandlerDispatch call = 1;
+  }
 }
 
 // Defines the target of a transition
@@ -217,8 +240,20 @@ message HttpActivityConfig {
 // Combined with a back-edge transition this expresses a polling loop, e.g.
 // poll-inbox (http) -> wait (timer 60s) -> poll-inbox (back-edge).
 message TimerActivityConfig {
-  // How long to pause before this activity's transitions are evaluated.
-  google.protobuf.Duration duration = 1;
+  // Former google.protobuf.Duration `duration`, which proto3 JSON could only
+  // spell in seconds ("86400s").
+  reserved 1;
+
+  // How long to pause before this activity's transitions are evaluated, in the
+  // unit shorthand: `90s`, `8h`, `1h30m`, `3d` — units largest first, each at
+  // most once, whole numbers, and positive (UTOS-C201, UTOS-C202, UTOS-C203).
+  //
+  // A whole-field {{ }} template may stand in for the literal, and must render
+  // to a string in the same syntax (UTOS-E106); a number is refused, since `8`
+  // says neither seconds nor hours. The rendered value is recorded in history
+  // when the activity is entered, so a replay reads the same deadline.
+  // See docs/workflow-source-format.md § Durations.
+  string duration = 2;
 }
 
 // Configuration for sub-workflow invocation.
@@ -267,6 +302,10 @@ message WorkflowActivityConfig {
 // cancelled, or stops waiting, the child is cancelled too — its result can no
 // longer be observed.
 message CallActivityConfig {
+  // Former `repeated EmissionRule on_emitted`, before one rule type served
+  // every list.
+  reserved 1;
+
   // Subscribes this activity to the sub-workflow's output stream: evaluated
   // once per value the child emits, in stream order, before the child's
   // terminal entry reaches `on_success`.
@@ -293,7 +332,7 @@ message CallActivityConfig {
   //
   // Empty (the default) means this caller ignores emissions: it awaits only the
   // terminal entry. It is not privileged, so it does not gate the producer.
-  repeated EmissionRule on_emitted = 1;
+  repeated TransitionRule on_emitted = 2;
 }
 
 // Start the sub-workflow and move on immediately (fire-and-forget). The child
@@ -434,74 +473,6 @@ message PromiseBranch {
   optional google.protobuf.Struct input = 7;
 }
 
-// One rule of a `workflow.call` activity's `on_emitted` list, evaluated once per
-// value the callee emits, in stream order, with `output` bound to that value.
-// An optional condition and exactly one action: `handle` runs a document for
-// the value and comes back for the next; `transition`, `result` and `error`
-// stop consuming, and stopping cancels the producer. See
-// docs/execution-output-stream.md.
-message EmissionRule {
-  // Optional; skip this rule if the condition evaluates to false. Rules are
-  // evaluated in order and the first match wins, as elsewhere. A list where
-  // nothing matches skips that value and takes the next — a filtering consumer,
-  // not an abandoned loop.
-  optional string condition = 1;
-
-  // What to do with the value. Exactly one, and a rule with none is rejected
-  // (UTOS-C504); two is unrepresentable, which is why this is a oneof rather
-  // than optional fields checked after the fact.
-  //
-  // The answers a consumer has to "a value arrived", and the reason this is not
-  // simply a dispatch: `handle` continues the loop, while `transition`, `result`
-  // and `error` leave it. Without the leaving actions a consumer had no way to
-  // stop consuming at all — its only exit was the producer terminating, which
-  // for the poller this feature exists to serve is never.
-  oneof action {
-    // Run a document for this value, wait for it to finish, then come back for
-    // the next one. The loop body, and the only action that continues
-    // consuming.
-    //
-    // The producer stays parked for the duration, so values are handled one at
-    // a time and cannot pile up — the back-pressure described in
-    // docs/execution-output-stream.md is a consequence of this waiting, not a
-    // separate mechanism.
-    HandlerDispatch handle = 2;
-
-    // Stop consuming and continue at this activity, in the *consuming*
-    // workflow. The subscription ends and the producer is cancelled at that
-    // point — not when this workflow eventually terminates, which may be much
-    // later — since nothing will observe it again.
-    //
-    // Safe where a handler transitioning here would not be, and the difference
-    // is which execution evaluates it. This rule is evaluated by the consumer,
-    // in the consumer's own execution, so the target is an ordinary activity in
-    // the consumer's own graph (UTOS-T003). A dispatched handler runs in an
-    // execution of its own that holds no subscription, which is why it cannot
-    // name the consumer's flow at all — see UTOS-S011.
-    TransitionTarget transition = 3;
-
-    // Stop consuming and end the consumer with this value as its result. The
-    // subscription ends and the producer is cancelled, as above.
-    //
-    // The same action `on_success` carries, and it means the same thing there;
-    // what differs is when the list is evaluated. This one fires on a value
-    // while the producer is still running, that one only once it has finished.
-    //
-    // This is how "find one thing and return it" is written. Without it the
-    // only way to stop early was to make a handler fail, which ends the run as
-    // an error and loses the distinction between finishing early on purpose and
-    // breaking. An empty struct stops consuming and ends with no value.
-    google.protobuf.Struct result = 4;
-
-    // Stop consuming and end the consumer as a failure, with this error — the
-    // same action `on_success` carries, with the same shape and rules
-    // (UTOS-T005). The subscription ends and the producer is cancelled. There is
-    // no failure in scope when a value arrives, so the empty re-raise form of
-    // `on_failure` is not legal here.
-    WorkflowError error = 5;
-  }
-}
-
 // Run a document, starting from one of its activities.
 //
 // The same triple a PromiseBranch carries, and deliberately so: dispatching
@@ -509,11 +480,11 @@ message EmissionRule {
 // emission handler is processing a value with it. Neither names an activity in
 // the dispatching document; both name a document and where to enter it.
 //
-// A branch carries these fields flat while an emission rule nests them under
-// `handle`, which is the one asymmetry. A branch has no alternative actions, so
-// there is nothing for a wrapper to disambiguate; an emission rule has four,
-// and the block is what makes the choice visible rather than something the
-// author has to know from the field names.
+// A branch carries these fields flat while a rule nests them under its effect
+// key, which is the one asymmetry. A branch has no alternative actions, so there
+// is nothing for a wrapper to disambiguate; a rule has an effect and an exit,
+// and the key is what makes the choice visible rather than something the author
+// has to know from the field names.
 //
 // Requiring a document keeps each `spec.activities` map to one flow. Work that
 // exists only to serve a branch or a handler lives in a document of its own,

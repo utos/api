@@ -1,0 +1,29 @@
+{
+  "entryPoint": "acme/waiter:1.0.0",
+  "workflows": {
+    "acme/waiter:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "waiter",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "A wait of no time is a mistake, not a fast path."
+      },
+      "spec": {
+        "activities": {
+          "wait": {
+            "timer": {
+              "duration": "0s"
+            },
+            "onSuccess": [
+              {
+                "result": {}
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

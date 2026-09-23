@@ -36,9 +36,9 @@ entry, or renumber one.
 
 ## Producing
 
-`emit` appends a value and transitions; `result` appends the terminal entry and ends the path.
-They are the same operation differing in what comes after, which is why a generator reads
-naturally: emit N times, return once.
+`emit` appends a value; `result` appends the terminal entry and ends the path. A rule that emits
+usually carries an exit as well — in `onSuccess` it must — so the two read as one operation
+differing in what comes after, which is why a generator reads naturally: emit N times, return once.
 
 Emitting is not conditional on anyone listening. An execution with no consumer — a
 `workflow.spawn`, or a top-level run — still records everything it emits, and those entries are
@@ -74,8 +74,8 @@ single entry: one emission carrying five thousand records is still one emission.
 rather than a gap — batch size is pagination policy, and pagination policy belongs to the producer,
 which is the encapsulation this feature exists to enable.
 
-Consuming is a loop, and the handler is its body. The handler is a **document**, dispatched once
-per entry: its execution terminating is what finishes one iteration, and control then returns to
+Consuming is a loop, and a rule's `workflow.call` effect is its body: a **document**, dispatched
+once per entry: its execution terminating is what finishes one iteration, and control then returns to
 the call activity for the next entry. Re-entering the call activity while a subscription is live
 consumes the next entry rather than starting a second child.
 
@@ -88,14 +88,15 @@ instead of resuming the first.
 
 A consumer can also decline a value. An `onEmitted` rule list where no condition matches is
 exhausted, so the value is skipped and the next one taken — a filtering consumer, not an abandoned
-loop.
+loop. A rule may also `emit` a value of its own and take the next entry, which is how a consumer
+republishes part of a stream without dispatching a document to do it.
 
-### A handler's emissions relay
+### A dispatched document's emissions relay
 
-A handler's terminal result is discarded, and an `emit` inside a handler is appended to the
-**consumer's** own stream and handed to the consumer's caller.
+The terminal result of a document a `workflow.call` effect dispatched is discarded, and an `emit`
+inside it is appended to the **consumer's** own stream and handed to the consumer's caller.
 
-The handler is the body of the consumer's loop, so what it produces is, to the consumer's caller,
+The dispatched document is the body of the consumer's loop, so what it produces is, to the consumer's caller,
 what the consumer produced — and a caller of a consumer of a consumer depends on exactly that. It
 needs no keyword: emit in the handler, and it comes out of the consumer.
 
@@ -116,8 +117,8 @@ property everything above depends on. A branch's emissions stay on the branch ex
 
 ## Subscription lifetime
 
-A subscription ends when the consumer decides to stop — an `onEmitted` rule carrying a
-`transition`, a `result` or an `error` — or when the consuming execution terminates, is cancelled, or fails.
+A subscription ends when the consumer decides to stop — an `onEmitted` rule carrying any exit:
+a `transition`, a `result` or an `error` — or when the consuming execution terminates, is cancelled, or fails.
 A handler finishing is not leaving: it is how one iteration of the loop finishes.
 
 The first of those is the only exit reachable *from inside the loop*, and it is what makes the rest
