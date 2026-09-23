@@ -71,7 +71,7 @@ leaf expression-interpolation-statement "id-{{ const a = 1; a }}-x"             
 
 # 0.20.0: a retired member of a scope name is refused at load, by every spelling a parser can see.
 cond expression-retired-member          "response.bodyText === ''"                        UTOS-E070
-cond expression-retired-member-pattern  "(({ bodyText }) => bodyText === '')(response)"    UTOS-E070
+cond expression-retired-member-pattern  "const { bodyText } = response; bodyText === ''"    UTOS-E070
 
 # 0.0.16 actions: the former keywords are ordinary unresolved names, and an error needs a code.
 bundle "https://api.example.com/hello" '[ { "transition": { "name": "end" } } ]' > transition-to-keyword-end.json
