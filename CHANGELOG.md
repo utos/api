@@ -13,7 +13,7 @@ minor, so `0.19.x` in `utos/dapr-daemon`, `utos/cli` or `utos/sdk-dotnet` all
 mean *implements spec 0.19*. A repo with nothing to change simply does not
 release, and its latest `0.19.x` stays current.
 
-## [0.20.0]
+## [0.20.0] - 2026-09-23
 
 ### Added
 - **Binary data** (`docs/binary-data.md`, `workflow/v1/value.proto`, `daemon/v1/blob.proto`). A workflow could read a response's bytes and do nothing else with them: a `Buffer` cannot leave an expression, so an image fetched by one activity could not be uploaded by the next, handed to a sub-workflow, taken as a run's input or returned as its result. **`Blob` and `File` are now values**, with Node's names and meanings — an immutable sequence of bytes with a media type, and one with a name — and they cross every boundary a value crosses. `Buffer` stays what an expression computes with, and still cannot leave one
@@ -60,9 +60,9 @@ Two end-to-end reads of the spec, correcting text that had drifted from the prot
 - **The stream's guarantees are stated once**, in `execution-output-stream.md`. The source format restated ordering, back-pressure, the relay and subscription lifetime, which is how the two came to describe the same thing in different words; it now shows the syntax and points there. That document also names the **handler** where it defines it, rather than assuming the word
 - **Two more `v`-prefixed example versions** (`workflow/v1/bundle.proto`, `workflow.proto`), which `UTOS-M005` forbids, and a bundle description that credited the CLI with building bundles and named only one of the three places a bundle names a document
 - **`UTOS-B006` names every place a bundle names a document** — `PromiseBranch.workflow` and `HandlerDispatch.workflow` as well as `WorkflowActivityConfig.workflow`. `UTOS-C503` already relied on it, and the shared validator already applied it
-- **An `onEmitted` rule has four actions, not three** (`docs/workflow-source-format.md`, `UTOS-C504`, the `EmissionRule` comment). `error` was in the proto and missing from every description; the `EmissionRule` comment itself still described the flat dispatch it was in 0.0.13
+- **`error` was missing from every description of an `onEmitted` rule** (`docs/workflow-source-format.md`, `UTOS-C504`, the `EmissionRule` comment), though the proto had carried it all along; the `EmissionRule` comment still described the flat dispatch it had been in 0.0.13. Both are moot by the end of this release, which gives every list one rule shape, but the omission is why the gap went unnoticed
 - **Source examples wrote `result:`**, which the source format rejects as an unknown field. They write `return:`
-- **The build step rewrote aliases only on sub-workflow activities.** It rewrites every place a document is named, promise branches and `handle` included, and `self`
+- **The build step rewrote aliases only on sub-workflow activities.** It rewrites every place a document is named — promise branches and a rule's dispatch effect included — and `self`
 - **Scope is defined once**, in `docs/template-expressions.md` § Scope, which now also says what `output` holds for each activity kind and in an `onEmitted` rule. The source format's § Templates keeps the authoring guidance and points there, rather than both documents half-defining the same names. A "dependency aliases" row that described no expression name is gone, as is `CallActivityConfig.input`, which does not exist (`input` is on `WorkflowActivityConfig`)
 - **`$ref` chains must terminate**, not "the graph must be acyclic" — two passages still said the latter after `0.19.0` corrected `UTOS-H006`
 - **The content digest's status** (`docs/canonical-bundle-digest.md`). A reference implementation exists (`ComputeContentDigest()` in `Utos.Workflow`); golden vectors do not, so the format is provisional, and a client must not send a digest *it computed* as a guard. The text had said to leave the digest empty, which nothing does
