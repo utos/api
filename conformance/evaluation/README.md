@@ -21,7 +21,7 @@ has to answer identically.
 
 | Field | Meaning |
 |---|---|
-| `form` | `condition` (bare, must be boolean), `value` (whole-field, typed), `text` (rendered to a string), or `collection` (whole-field, typed, and must be an array — a `PromiseForEach.collection`, where anything else is `UTOS-E105`) |
+| `form` | `condition` (bare, must be boolean), `value` (whole-field, typed), `text` (rendered to a string), `collection` (whole-field, typed, and must be an array — a `PromiseForEach.collection`, where anything else is `UTOS-E105`), or `duration` (whole-field, and must render to a duration string — a `TimerActivityConfig.duration`, where anything else is `UTOS-E106`) |
 | `expression` | The program, exactly as it would appear inside `{{ }}` — the delimiters are not part of the case |
 | `scope` | The names in scope and their values, as **plain JSON**, read by the JSON → `WorkflowValue` conversion of [`workflow-values.md`](../../docs/workflow-values.md#json) — so it never holds a blob, and a `$blob` key in it is an ordinary key. Names absent here are absent in scope |
 | `scopeWire` | In place of `scope`, for a case whose scope holds a blob: the scope as the **wire form**, a `utos.workflow.v1.WorkflowMap` in protobuf JSON whose fields are the names in scope |

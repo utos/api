@@ -241,7 +241,12 @@ For each entry of `spec.activities`, given `A = utos.workflow.v1.WorkflowActivit
    source tree is not structurally the proto tree: a bundle carries standard JSON Schema, so `?`,
    `min`/`max` and the closed-by-default rule are resolved here and nothing downstream learns
    them. A `schema` with no `input` is omitted rather than emitted as `{}`.
-6. The result is parsed as proto3 JSON. Unrecognized keys inside the configuration surface here
+6. A rule's **effect key may be dotted**, and resolves by the same walk as an activity's `type`:
+   each segment names a field in the current message's oneof — here `TransitionRule.effect` — and
+   the walk continues while the message it reaches declares one. `workflow.call` is
+   `effect` → `workflow` → `mode` → `call`, so it needs no alias table, and an effect added later
+   is one more field in that oneof. An unknown dotted key fails as any unknown field does.
+7. The result is parsed as proto3 JSON. Unrecognized keys inside the configuration surface here
    as ordinary unknown-field errors, so no separate check is needed.
 
 So the `wait` activity above becomes:
@@ -286,7 +291,28 @@ restructuring occurs — apart from the three schema slots of step 5, `spec.env`
 their order is significant and is preserved through to the bundle digest. A rule with no
 `condition` always matches and therefore acts as a fallback; anything after it is unreachable.
 
-Each rule carries exactly one action:
+Every rule, in every list, has the same shape: an optional **condition**, at most one **effect** —
+what happens — and at most one **exit** — where the run goes next. A rule with neither an effect
+nor an exit is rejected at load (`UTOS-T001`); "match and do nothing" is better said by leaving the
+rule out.
+
+The **effects**:
+
+- `emit` — append this value to the execution's output stream. Where `return` is
+  emit-and-terminate, `emit` is emit-and-continue, so a workflow can produce many values over its
+  lifetime instead of exactly one at the end.
+- `workflow.call` — run a document and wait for it to finish, with the same three keys a promise
+  branch uses: `workflow`, `startActivity`, `input`.
+
+**At most one effect**, and the oneof enforces it rather than a rule. Two effects would need an
+order the document cannot express — the order they were written in does not survive into the
+bundle — so the spec would have to fix one that nobody would remember. The two combinations worth
+wanting compose instead: a dispatched document that also needs long-running work ends with a
+`workflow.spawn` activity of its own, and a dispatched document that needs to tell the caller
+something emits, since a handler's emissions relay
+([`execution-output-stream.md`](execution-output-stream.md)).
+
+The **exits**:
 
 - `transition` — go to another activity. `name` is an activity in the same workflow — never a
   keyword. The optional `input` is a transform producing the target's `input` context; leaf
@@ -303,9 +329,23 @@ Each rule carries exactly one action:
   in scope to re-raise, so there an `error` must carry a `code` (`UTOS-T005`). A `code` stays a
   literal either way: the rethrow is what forwarding is for, and an upstream service's own code
   belongs in `details`.
-- `emit` — append `value` to this execution's output stream, then take `transition`. Where
-  `return` is emit-and-terminate, `emit` is emit-and-continue, so a workflow can produce many
-  values over its lifetime instead of exactly one at the end.
+Which lists require an exit:
+
+| List | When it runs | Exit |
+|---|---|---|
+| `onSuccess`, `onFailure` | Once, when the activity ends | **Required** — the activity is over, so the run has to go somewhere |
+| `onEmitted` | Once per emitted value | **Optional** — an exit is what stops consuming |
+
+An effect and an exit sit side by side, and `emit` names its value directly:
+
+```yaml
+onSuccess:
+  - condition: "output.messages.length > 0"
+    emit: { messages: "{{ output.messages }}" }
+    transition: { name: wait, input: { cursor: "{{ output.cursor }}" } }
+```
+
+`emit` with `return` or `error` is allowed and occasionally useful: a last value, then the end.
 
 Failing a path is deliberately an action rather than something an expression does: a rule whose
 condition detects the bad shape and an `error` that names it are both visible in the document,
@@ -358,12 +398,10 @@ poll:
   url: "{{ env.MAIL_API }}/messages?since={{ input.cursor }}"
   onSuccess:
     - condition: "output.messages.length > 0"
-      emit:
-        value:
-          messages: "{{ output.messages }}"
-        transition:
-          name: wait
-          input: { cursor: "{{ output.cursor }}" }
+      emit: { messages: "{{ output.messages }}" }
+      transition:
+        name: wait
+        input: { cursor: "{{ output.cursor }}" }
     - transition:
         name: wait
         input: { cursor: "{{ input.cursor }}" }
@@ -385,7 +423,7 @@ watch:
       transition: { name: release-hold }
 
     # Anything else: hand it to a document and come back for the next value.
-    - handle:
+    - workflow.call:
         workflow: ingester          # a dependency alias; `self` is not legal here
         startActivity: ingest
         input: { messages: "{{ output.messages }}" }
@@ -393,17 +431,22 @@ watch:
     - return: { done: true }        # reached only when the mailbox itself ends
 ```
 
-An `onEmitted` rule is an optional `condition` and exactly one action. What each does to **this**
-workflow and to the **producer** it is consuming:
+An `onEmitted` rule has the shape every rule has, and here the exit is optional — an exit is how a
+consumer stops. What each part does to **this** workflow and to the **producer** it is consuming:
 
-| Action | This workflow | The producer |
+| Part | This workflow | The producer |
 |---|---|---|
-| `handle` | Runs the named document for this value and waits for it to finish, then takes the next value. | Stays parked until the handler finishes, so values arrive one at a time and never pile up. |
-| `transition` | Continues at the named activity, in this workflow. | Cancelled. |
-| `return` | Ends, with that value as its result. | Cancelled. |
-| `error` | Fails, with that error. A bare `error` has nothing to re-raise here — `error` is `null` in an `onEmitted` rule — so it must carry a `code` (`UTOS-T005`). | Cancelled. |
+| `workflow.call` (effect) | Runs the named document for this value and waits for it to finish, then takes the next value. | Stays parked until the call finishes, so values arrive one at a time and never pile up. |
+| `emit` (effect) | Appends a value to **this** workflow's own stream, then takes the next value. | Stays parked, as for a call. |
+| `transition` (exit) | Continues at the named activity, in this workflow. | Cancelled. |
+| `return` (exit) | Ends, with that value as its result. | Cancelled. |
+| `error` (exit) | Fails, with that error. A bare `error` has nothing to re-raise here — `error` is `null` in an `onEmitted` rule — so it must carry a `code` (`UTOS-T005`). | Cancelled. |
 
-Only `handle` continues consuming. The other three leave the loop, and leaving it cancels the
+A rule with an effect and no exit keeps consuming; an `emit` effect is what a **filtering consumer**
+is written with — take the mailbox stream, republish only the invoices — without a document whose
+only job is to republish a value.
+
+Only an effect alone continues consuming. Any exit leaves the loop, and leaving it cancels the
 producer **at that point** rather than when this workflow eventually ends — nothing will observe it
 again, and a gated producer left running would sit on an acknowledgement that is never coming,
 holding an execution and a stream for as long as this workflow keeps going.
@@ -506,6 +549,52 @@ activities:
 
 See [`binary-data.md`](binary-data.md) for what a blob is, where its bytes live, and how a client
 puts one into a run or takes one out.
+
+### Durations
+
+A duration is a **string** in the unit shorthand that Kubernetes, Argo, Prometheus and Docker
+Compose use, and the timer's `duration` is the one field that takes one:
+
+| Unit | Meaning |
+|---|---|
+| `ms` | milliseconds |
+| `s` | seconds |
+| `m` | minutes |
+| `h` | hours |
+| `d` | days — exactly 24 hours, never a calendar day |
+
+A whole number per unit, units largest first, each at most once, no spaces: `90s`, `8h`, `1h30m`,
+`3d`, `2d12h`. As a pattern, `^(\d+d)?(\d+h)?(\d+m)?(\d+s)?(\d+ms)?$`, with at least one part.
+It must be positive; zero is refused (`UTOS-C202`), and anything else the pattern does not match is
+`UTOS-C203`.
+
+- **No weeks, months or years.** A month is not a fixed length, and `7d` says a week plainly.
+- **No fractions.** `1.5h` is `1h30m`. Go's parser accepts fractions, and they are exactly the kind
+  of thing two implementations round differently.
+- **No ISO 8601.** `PT1H30M` is the formal standard and is easy to misread in YAML; accepting both
+  would be two ways to write one thing.
+- **`86400s` is valid**, so every timer written before this syntax existed keeps working. Before it,
+  seconds were the only spelling a document could use at all, because the source format ends by
+  reading the document as proto3 JSON, where a duration is `"86400s"`.
+
+**A duration field takes a literal or a whole-field template**, so a reusable document can let its
+caller choose how long it waits:
+
+```yaml
+wait:
+  type: timer
+  duration: "{{ input.retryAfter ?? '30s' }}"
+```
+
+A literal is checked at load. A template is evaluated when the activity is entered and must produce
+a **string** in the same syntax: a number is refused, because `8` says neither seconds nor hours,
+and an invalid, zero or negative result fails the activity with `UTOS-E106`, routable in
+`onFailure` like any other failure. The rendered value is recorded in the run's history, so a replay
+reads the same deadline rather than re-evaluating an expression whose inputs may have moved.
+
+`duration` is also a declarable type ([`workflow-schemas.md`](workflow-schemas.md)), so a document
+that takes a wait as input can say `timeout?: { type: duration }` and a caller passing
+`"8 hours"` is refused at the door rather than at the timer.
 
 ## Building a bundle
 
@@ -665,6 +754,19 @@ it.
 
 Non-normative. What changes for a document written against an earlier version.
 
+### A rule written before 0.20
+
+Both shapes below are rejected at load rather than misread, so a stale document fails with a
+message rather than running differently.
+
+| Before | Now |
+|---|---|
+| `emit: { value: {…}, transition: {…} }` | `emit: {…}` beside `transition: {…}` — the effect and the exit, side by side |
+| `handle: { workflow: …, startActivity: …, input: {…} }` | `workflow.call: { workflow: …, startActivity: …, input: {…} }` |
+
+A timer's `duration` is unchanged: seconds (`"30s"`) were the only form a document could previously
+express, and they remain valid.
+
 ### A consumer written before 0.0.13
 
 **This one is silent.** `onEmitted` has had three shapes. Before 0.0.13 a rule was an ordinary transition rule, the same thing `onSuccess` carries,
@@ -680,4 +782,5 @@ because the old spelling and the new one are the same word applied to the same f
 grepping for, since nothing else will tell you.
 
 The migration is not textual. The activity the old rule transitioned to has to move into a document
-of its own, because `handle` names a document and `self` is not legal there (`UTOS-S011`).
+of its own, because a `workflow.call` effect names a document and `self` is not legal there
+(`UTOS-S011`).

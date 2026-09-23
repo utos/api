@@ -13,22 +13,41 @@
       "spec": {
         "env": {
           "type": "object",
-          "required": ["RESIZER"],
+          "required": [
+            "RESIZER"
+          ],
           "properties": {
-            "RESIZER": { "type": "string" },
-            "REGION": { "type": "string", "default": "us-east-1" }
+            "RESIZER": {
+              "type": "string"
+            },
+            "REGION": {
+              "type": "string",
+              "default": "us-east-1"
+            }
           }
         },
         "output": {
           "type": "object",
-          "required": ["bytes"],
-          "properties": { "bytes": { "type": "integer" } },
+          "required": [
+            "bytes"
+          ],
+          "properties": {
+            "bytes": {
+              "type": "integer"
+            }
+          },
           "unevaluatedProperties": false
         },
         "emits": {
           "type": "object",
-          "required": ["step"],
-          "properties": { "step": { "type": "string" } },
+          "required": [
+            "step"
+          ],
+          "properties": {
+            "step": {
+              "type": "string"
+            }
+          },
           "unevaluatedProperties": false
         },
         "activities": {
@@ -36,39 +55,85 @@
             "schema": {
               "input": {
                 "type": "object",
-                "required": ["photo"],
+                "required": [
+                  "photo"
+                ],
                 "properties": {
-                  "photo": { "type": "string", "format": "uri" },
-                  "quality": { "type": "integer", "minimum": 1, "maximum": 100, "default": 80 },
-                  "customer": { "$ref": "#/$defs/Customer" }
+                  "photo": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "quality": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 80
+                  },
+                  "customer": {
+                    "$ref": "#/$defs/Customer"
+                  }
                 },
                 "unevaluatedProperties": false,
                 "$defs": {
                   "Customer": {
                     "type": "object",
-                    "required": ["email"],
-                    "properties": { "email": { "type": "string", "format": "email" } },
+                    "required": [
+                      "email"
+                    ],
+                    "properties": {
+                      "email": {
+                        "type": "string",
+                        "format": "email"
+                      }
+                    },
                     "unevaluatedProperties": false
                   }
                 }
               }
             },
-            "http": { "method": "POST", "url": "{{ env.RESIZER }}/resize" },
+            "http": {
+              "method": "POST",
+              "url": "{{ env.RESIZER }}/resize"
+            },
             "onSuccess": [
-              { "emit": { "value": { "step": "resized" }, "transition": { "name": "report", "input": { "bytes": "{{ output.bytes }}" } } } }
+              {
+                "emit": {
+                  "step": "resized"
+                },
+                "transition": {
+                  "name": "report",
+                  "input": {
+                    "bytes": "{{ output.bytes }}"
+                  }
+                }
+              }
             ]
           },
           "report": {
             "schema": {
               "input": {
                 "type": "object",
-                "required": ["bytes"],
-                "properties": { "bytes": { "type": "integer" } },
+                "required": [
+                  "bytes"
+                ],
+                "properties": {
+                  "bytes": {
+                    "type": "integer"
+                  }
+                },
                 "unevaluatedProperties": false
               }
             },
-            "timer": { "duration": "1s" },
-            "onSuccess": [ { "result": { "bytes": "{{ input.bytes }}" } } ]
+            "timer": {
+              "duration": "1s"
+            },
+            "onSuccess": [
+              {
+                "result": {
+                  "bytes": "{{ input.bytes }}"
+                }
+              }
+            ]
           }
         }
       }

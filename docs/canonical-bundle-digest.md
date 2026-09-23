@@ -39,9 +39,8 @@ but never reorders *arrays***, which gives the map-vs-list distinction for free.
 
 ## Pinned rules
 
-The bundle graph is favorable: it contains **no enums, no `bytes`, and no 64-bit integers** at
-the project level (`Duration` has a string JSON form), so proto3 JSON's trickier cases do not
-arise. The rules:
+The bundle graph is favorable: it contains **no enums, no `bytes`, no 64-bit integers** and no
+well-known types beyond `Struct`, so proto3 JSON's trickier cases do not arise. The rules:
 
 1. **Field names — lowerCamelCase.** Use the proto3 JSON default `json_name` (e.g. `apiVersion`,
    `entryPoint`, `onSuccess`, `startActivity`). No field overrides `json_name`, so this is
@@ -66,8 +65,10 @@ arise. The rules:
    canonicalized by JCS (ECMAScript shortest round-trip). `NullValue` → JSON `null`. `NaN` and
    `±Infinity` are not representable as JSON numbers and are **forbidden** in bundle `Struct`
    values — reject at build time.
-6. **`Duration` → proto3 JSON string** (`"3s"`, `"3.500s"`; up to nanosecond precision, fractional
-   digits in groups of 0/3/6/9). The only `Duration` in the graph is `TimerActivityConfig.duration`.
+6. **No `Duration`s.** A duration is an ordinary string in the unit shorthand
+   ([`workflow-source-format.md` § Durations](workflow-source-format.md#durations)), so it
+   canonicalizes as any string does. `TimerActivityConfig.duration` was the only
+   `google.protobuf.Duration` in the graph and became a string in 0.20.0.
 7. **Numbers — RFC 8785 §3.2.2.3.** Covers `int32 requiredCount` and `Struct` doubles.
 8. **Output.** `sha256`, lowercase hex, `"sha256:"`-prefixed — matching the `WorkflowReference.digest`
    field format.
@@ -126,7 +127,7 @@ What this demonstrates:
 - **Empty messages kept:** the fallback rule's `"result": {}` — a `return` with no value — is a
   set message field with nothing inside it, and it survives because presence is the whole
   payload. A `workflow.call` activity's `"call": {}` is the same case.
-- **`Duration`** as the string `"5s"`.
+- **A duration** as the ordinary string `"5s"`.
 
 Digest: not yet pinned — see Conformance.
 

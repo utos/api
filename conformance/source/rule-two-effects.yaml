@@ -1,0 +1,17 @@
+# Two effects in one rule. They are members of one oneof, so this is not a rule the wire can
+# express at all — it fails as the document not matching the workflow schema, before any rule
+# about rules is reached.
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: rules
+  version: 1.0.0
+spec:
+  activities:
+    poll:
+      type: timer
+      duration: 1s
+      onSuccess:
+        - emit: { items: [] }
+          workflow.call: { workflow: self, startActivity: poll }
+          transition: { name: poll }

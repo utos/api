@@ -32,12 +32,13 @@ another tool has. Evaluation rules are enforced by the executor on every evaluat
 
 | Field | Form |
 |---|---|
-| `TransitionRule.condition`, `EmissionRule.condition`, `PromiseBranch.condition` | **Condition** — the whole string is one expression, no delimiters, must be boolean |
+| `TransitionRule.condition`, `PromiseBranch.condition` | **Condition** — the whole string is one expression, no delimiters, must be boolean |
 | `PromiseForEach.collection` | **Whole-field value** — `{{ }}`, must evaluate to an array; anything else — a string, an object, a number, `null`, `undefined` — is `UTOS-E105` |
-| Leaf strings of `TransitionTarget.input`, `EmitAction.value`, `TransitionRule.result`, `EmissionRule.result`, `WorkflowActivityConfig.input`, `HandlerDispatch.input`, `PromiseBranch.input` | **Value** — whole-field or interpolation |
+| Leaf strings of `TransitionTarget.input`, `TransitionRule.emit`, `TransitionRule.result`, `WorkflowActivityConfig.input`, `HandlerDispatch.input`, `PromiseBranch.input` | **Value** — whole-field or interpolation |
 | `HttpActivityConfig.url`, `.headers` values; `PromiseBranch.name`; `WorkflowError.message` | **Text** — whole-field or interpolation, always rendered to a string |
 | `HttpActivityConfig.body` | **Text**, with one exception: a whole-field template whose value is a `Blob` sends that blob's bytes ([`binary-data.md` § Sending a request body](binary-data.md#sending-a-request-body)) |
 | Leaf strings of `WorkflowError.details` | **Value**, restricted to plain data — a blob there is `UTOS-E103`, because details stay JSON ([`workflow-values.md`](workflow-values.md#values-and-templates)) |
+| `TimerActivityConfig.duration` | **Whole-field text** — `{{ }}` or a literal, never interpolation, and must render to a duration string; anything else is `UTOS-E106` (§ Durations) |
 
 A string containing no `{{` is a literal in every position except a condition, where it is an
 expression (`condition: "true"` is valid; `condition: "{{ true }}"` is not — `UTOS-E061`).
@@ -224,6 +225,33 @@ Two places narrow this:
   is a whole-field `HttpActivityConfig.body`, which sends the blob's bytes.
 - **An error's `details`** stay plain JSON (`workflow/v1/common.proto`), so a blob there is
   `UTOS-E103`. An error explains a failure; it does not carry a payload.
+
+### Durations
+
+A field that takes a duration — today only `TimerActivityConfig.duration` — is a **literal or a
+whole-field template**, never interpolation: a duration is one value, and half of one is not a
+shorter wait. [`workflow-source-format.md` § Durations](workflow-source-format.md#durations)
+defines the syntax; a literal is checked at load (`UTOS-C202`, `UTOS-C203`).
+
+A template is evaluated when the activity is entered and must produce a **string** in that syntax.
+Anything else is **`UTOS-E106`**, which fails the activity and is routable in `onFailure` like any
+other failure:
+
+- a number — `8` says neither seconds nor hours, which is what the units exist to remove, so it is
+  refused rather than guessed at;
+- a string the syntax does not accept (`1.5h`, `PT8H`, `8 hours`);
+- zero or a negative duration, which `UTOS-C202` refuses in a literal;
+- `null`, `undefined`, an object, an array or a blob.
+
+The rendered duration, and the instant it resolves to, are recorded when the activity is entered,
+so a replay reads the same deadline rather than evaluating an expression whose inputs have moved.
+That makes a templated wait as replay-safe as a literal one.
+
+```yaml
+wait:
+  type: timer
+  duration: "{{ response.headers['retry-after'] ? response.headers['retry-after'] + 's' : '30s' }}"
+```
 
 ## Grammar
 
