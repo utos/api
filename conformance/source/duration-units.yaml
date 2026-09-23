@@ -1,0 +1,29 @@
+# A duration is a string in the unit shorthand, or a whole-field template. The mapping copies it
+# through: the syntax is checked by the bundle rules, and a template by the executor.
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: waiter
+  version: 1.0.0
+spec:
+  activities:
+    short:
+      type: timer
+      duration: 90s
+      onSuccess:
+        - transition: { name: compound }
+    compound:
+      type: timer
+      duration: 2d12h30m
+      onSuccess:
+        - transition: { name: legacy }
+    legacy:
+      type: timer
+      duration: 86400s          # what proto3 JSON allowed before the shorthand
+      onSuccess:
+        - transition: { name: templated }
+    templated:
+      type: timer
+      duration: "{{ input.retryAfter ?? '30s' }}"
+      onSuccess:
+        - return: {}

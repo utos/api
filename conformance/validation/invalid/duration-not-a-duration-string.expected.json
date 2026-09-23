@@ -1,0 +1,8 @@
+{
+  "issues": [
+    {
+      "code": "UTOS-C203",
+      "path": "workflows[\"acme/waiter:1.0.0\"].spec.activities[\"wait\"].timer.duration"
+    }
+  ]
+}

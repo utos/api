@@ -7,7 +7,7 @@
       "metadata": {
         "name": "greet",
         "version": "1.0.0",
-        "description": "An emit action with no target: emit is not terminal, so it must say where to go."
+        "description": "An emit effect and no exit, in a list whose rules end the activity: the run would be stranded."
       },
       "spec": {
         "activities": {
@@ -19,9 +19,7 @@
             "onSuccess": [
               {
                 "emit": {
-                  "value": {
-                    "item": "{{ output.item }}"
-                  }
+                  "items": "{{ output.items }}"
                 }
               }
             ]

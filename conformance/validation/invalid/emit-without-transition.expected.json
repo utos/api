@@ -1,8 +1,0 @@
-{
-  "issues": [
-    {
-      "code": "UTOS-T004",
-      "path": "workflows[\"greet:1.0.0\"].spec.activities[\"produce\"].onSuccess[0].emit.transition"
-    }
-  ]
-}

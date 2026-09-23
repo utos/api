@@ -1,0 +1,26 @@
+{
+  "workflow": {
+    "apiVersion": "utos.io/v1",
+    "kind": "Workflow",
+    "metadata": { "name": "rules", "version": "1.0.0" },
+    "spec": {
+      "activities": {
+        "poll": {
+          "http": { "method": "GET", "url": "https://api.example.com/items" },
+          "onSuccess": [
+            {
+              "condition": "output.items.length > 0",
+              "emit": { "items": "{{ output.items }}" },
+              "transition": { "name": "poll" }
+            },
+            {
+              "workflow": { "call": { "workflow": "self", "startActivity": "poll" } },
+              "transition": { "name": "poll" }
+            },
+            { "result": { "done": true } }
+          ]
+        }
+      }
+    }
+  }
+}

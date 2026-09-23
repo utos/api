@@ -1,7 +1,7 @@
 # Execution Output Streams
 
 Every execution has exactly one **output stream**: an ordered, durable, cursor-addressable
-sequence of the values it produced. A workflow appends to it with the `emit` transition action
+sequence of the values it produced. A workflow appends to it with a rule's `emit` effect
 (`workflow/v1/activity.proto`); a caller consumes it with `CallActivityConfig.on_emitted`; anyone
 else reads it with `ExecutionService.WatchOutput` (`daemon/v1/execution.proto`).
 
@@ -15,8 +15,8 @@ breaking every caller.
 ## The stream
 
 An execution's stream is **zero or more `value` entries followed by exactly one terminal entry**.
-The terminal entry is the `result` a `result` action returned, or an `error` if the execution
-failed or was cancelled. It is always last, and it always exists once the execution is terminal —
+The terminal entry is the value a `result` exit returned, or an `error` if the execution failed or
+was cancelled. It is always last, and it always exists once the execution is terminal —
 a path that ended without returning anything terminates the stream with an empty structure, not
 with nothing.
 
@@ -36,17 +36,24 @@ entry, or renumber one.
 
 ## Producing
 
-`emit` appends a value and transitions; `result` appends the terminal entry and ends the path.
-They are the same operation differing in what comes after, which is why a generator reads
-naturally: emit N times, return once.
+`emit` appends a value; `result` appends the terminal entry and ends the path. A rule that emits
+usually carries an exit as well — in `onSuccess` it must — so the two read as one operation
+differing in what comes after, which is why a generator reads naturally: emit N times, return once.
 
 Emitting is not conditional on anyone listening. An execution with no consumer — a
 `workflow.spawn`, or a top-level run — still records everything it emits, and those entries are
 readable over `WatchOutput` for as long as the daemon retains the execution.
 
+An entry is a map of values ([`workflow-values.md`](workflow-values.md)), and may hold blobs. A
+blob appended to a **root** execution's stream — a top-level run's, or a spawned run's — becomes
+durable at that moment, whether it is emitted or returned, so a long-running poller's emissions do
+not wait for a termination that may never come before they are safe to download. A blob a child
+emits to its consumer is not promoted: the consumer is the one that asked for it, and it decides
+what to carry further ([`binary-data.md` § Retention](binary-data.md#retention)).
+
 ## Consuming, and back-pressure
 
-A `workflow.call` activity that declares `on_emitted` is that execution's **privileged consumer**.
+A `workflow.call` activity that declares `onEmitted` is that execution's **privileged consumer**.
 There is at most one, and it is the only reader that can affect the producer:
 
 > While an execution has a privileged consumer, an `emit` does not complete until that consumer's
@@ -67,8 +74,8 @@ single entry: one emission carrying five thousand records is still one emission.
 rather than a gap — batch size is pagination policy, and pagination policy belongs to the producer,
 which is the encapsulation this feature exists to enable.
 
-Consuming is a loop, and the handler is its body. The handler is a **document**, dispatched once
-per entry: its execution terminating is what finishes one iteration, and control then returns to
+Consuming is a loop, and a rule's `workflow.call` effect is its body: a **document** — the
+**handler** — dispatched once per entry: its execution terminating is what finishes one iteration, and control then returns to
 the call activity for the next entry. Re-entering the call activity while a subscription is live
 consumes the next entry rather than starting a second child.
 
@@ -79,16 +86,19 @@ dispatched it. Were the handler in the consumer's own graph, a transition back t
 would run in the handler's execution, which holds no subscription, and start a second producer
 instead of resuming the first.
 
-### A handler's emissions relay
+A consumer can also decline a value. An `onEmitted` rule list where no condition matches is
+exhausted, so the value is skipped and the next one taken — a filtering consumer, not an abandoned
+loop. A rule may also `emit` a value of its own and take the next entry, which is how a consumer
+republishes part of a stream without dispatching a document to do it.
 
-A handler's terminal result is discarded, and an `emit` inside a handler is appended to the
-**consumer's** own stream and handed to the consumer's caller.
+### A dispatched document's emissions relay
 
-That is not a new rule so much as the preservation of an old one. A handler used to run inside the
-consumer's own execution, so a value it emitted was already the consumer's — the three-level relay
-that behaviour supports is load-bearing, and moving the handler into its own execution would have
-broken it silently. Relaying across the new boundary keeps it, and needs no keyword: emit in the
-handler, it comes out of the consumer.
+The terminal result of a document a `workflow.call` effect dispatched is discarded, and an `emit`
+inside it is appended to the **consumer's** own stream and handed to the consumer's caller.
+
+The dispatched document is the body of the consumer's loop, so what it produces is, to the consumer's caller,
+what the consumer produced — and a caller of a consumer of a consumer depends on exactly that. It
+needs no keyword: emit in the handler, and it comes out of the consumer.
 
 Mechanically the consumer dispatches the handler as a consuming call of its own, so per entry:
 take V from the producer → dispatch the handler → the handler emits E → append E to our stream,
@@ -100,20 +110,15 @@ A consumer therefore holds two subscriptions at once — the producer's, and the
 One handler runs at a time, so one slot suffices, but it is live state and must survive a
 continue-as-new the way the producer subscription does.
 
-**Promise branches do not relay.** For a handler this preserves existing behaviour; for a branch
-it would change it, and N branches run concurrently, so interleaving their emissions into one
-stream would order them nondeterministically — which costs the single-ordered-stream property
-everything above depends on. A branch's emissions stay on the branch execution's own stream, where
+**Promise branches do not relay.** N branches run concurrently, so interleaving their emissions
+into one stream would order them nondeterministically — which costs the single-ordered-stream
+property everything above depends on. A branch's emissions stay on the branch execution's own stream, where
 `WatchOutput` can still read them.
-
-The same rule covers a handler that declines a value. An `on_emitted` rule list where no condition
-matches is exhausted, so the value is skipped and the next one taken — a filtering consumer, not an
-abandoned loop.
 
 ## Subscription lifetime
 
-A subscription ends when the consumer decides to stop — an `onEmitted` rule carrying a
-`transition` or a `result` — or when the consuming execution terminates, is cancelled, or fails.
+A subscription ends when the consumer decides to stop — an `onEmitted` rule carrying any exit:
+a `transition`, a `result` or an `error` — or when the consuming execution terminates, is cancelled, or fails.
 A handler finishing is not leaving: it is how one iteration of the loop finishes.
 
 The first of those is the only exit reachable *from inside the loop*, and it is what makes the rest
@@ -142,8 +147,8 @@ not retract what it emitted.
 There is no ordering rule to state, and that is the design working rather than an omission.
 
 Emitted values and the terminal result are entries in a single ordered stream, walked by a single
-cursor. Dispatch is by entry kind — `value` to `on_emitted`, `result` to `on_success`, `error` to
-`on_failure` — so "all emissions are handled before the result" is arithmetic, not a constraint
+cursor. Dispatch is by entry kind — `value` to `onEmitted`, `result` to `onSuccess`, `error` to
+`onFailure` — so "all emissions are handled before the result" is arithmetic, not a constraint
 somebody has to enforce. A producer that emits and immediately returns cannot have its result
 overtake its own last value, because the two are adjacent entries in one log.
 

@@ -1,0 +1,37 @@
+{
+  "schema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "$ref": "utos:blob"
+      },
+      "b": {
+        "$ref": "utos:file"
+      }
+    },
+    "unevaluatedProperties": false
+  },
+  "valueWire": {
+    "fields": {
+      "a": {
+        "blobValue": {
+          "data": "eA==",
+          "size": "1",
+          "mediaType": "text/plain",
+          "name": "x.txt"
+        }
+      },
+      "b": {
+        "blobValue": {
+          "data": "eA==",
+          "size": "1",
+          "mediaType": "text/plain",
+          "name": "x.txt"
+        }
+      }
+    }
+  },
+  "expect": {
+    "valid": true
+  }
+}

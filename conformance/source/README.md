@@ -41,4 +41,4 @@ gets it wrong produces a workflow that means something else, and nothing downstr
 ## Running them
 
 Each implementation of the source format runs this directory as part of its own test suite. The
-reference implementation lives in the CLI today and is to move into the shared SDK.
+reference implementation is `Utos.Workflow.Source` in `utos/sdk-dotnet`, which the CLI uses.

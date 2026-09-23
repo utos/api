@@ -1,0 +1,43 @@
+{
+  "schema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "$ref": "utos:blob",
+        "maxSize": 8
+      },
+      "b": {
+        "$ref": "utos:blob",
+        "maxSize": 7
+      }
+    },
+    "unevaluatedProperties": false
+  },
+  "valueWire": {
+    "fields": {
+      "a": {
+        "blobValue": {
+          "data": "iVBORw0KGgo=",
+          "size": "8",
+          "mediaType": "image/png"
+        }
+      },
+      "b": {
+        "blobValue": {
+          "data": "iVBORw0KGgo=",
+          "size": "8",
+          "mediaType": "image/png"
+        }
+      }
+    }
+  },
+  "expect": {
+    "valid": false,
+    "errors": [
+      {
+        "instanceLocation": "/b",
+        "keyword": "maxSize"
+      }
+    ]
+  }
+}

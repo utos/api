@@ -51,9 +51,8 @@ Activity-name references resolve by **ordinal (case-sensitive)** comparison. Pro
 are ordinal, so any looser rule would let a document validate and then fail to find its target at
 run time.
 
-There are no reserved names. Until 0.0.15 a transition could target the keywords `end` and
-`error`, matched case-insensitively; ending a path is now a `result` action and failing it an
-`error` action, so a target is always an activity and the comparison is ordinal everywhere.
+There are no reserved names. Ending a path is a `result` action and failing it an `error` action,
+so a transition target is always an activity, compared ordinally like every other name.
 
 ---
 
@@ -66,7 +65,7 @@ There are no reserved names. Until 0.0.15 a transition could target the keywords
 | `UTOS-B003` | `entryPoint` must be a key of `workflows` |
 | `UTOS-B004` | Every `workflows` key must be non-empty |
 | `UTOS-B005` | Every `workflows` key must equal the canonical identity derived from that workflow's own `metadata` — `[registry/][namespace/]name:version` |
-| `UTOS-B006` | Every `WorkflowActivityConfig.workflow` in the bundle must be a key of `workflows` |
+| `UTOS-B006` | Every document the bundle names — `WorkflowActivityConfig.workflow`, `PromiseBranch.workflow`, `HandlerDispatch.workflow` — must be a key of `workflows` |
 | `UTOS-B007` | `spec.dependencies` must be empty in a built bundle |
 
 `UTOS-B005` is what makes a bundle self-describing: the key and the metadata cannot disagree
@@ -145,22 +144,21 @@ activity does. The `path` names the level that is unset, e.g.
 
 | Code | Rule |
 |---|---|
-| `UTOS-T001` | A transition rule must carry exactly one action — `transition`, `result`, `emit`, or `error` |
+| `UTOS-T001` | A rule must carry at most one effect (`emit`, `workflow.call`) and at most one exit (`transition`, `result`, `error`), and not neither |
 | `UTOS-T002` | A `TransitionTarget.name` must be non-empty |
 | `UTOS-T003` | A `TransitionTarget.name` must resolve to an activity in the same workflow |
-| `UTOS-T004` | `emit.transition` is required |
+| ~~`UTOS-T004`~~ | *Retired in 0.20.0, not to be reused.* `emit.transition` was required |
 | `UTOS-T005` | An `error` action must carry a non-empty `code`, unless it is empty and on `onFailure` — the re-raise |
 
-`UTOS-T003` applies at **every** `TransitionTarget` site: `onSuccess`, `onFailure`,
-`emit.transition`, and an `onEmitted` rule's `transition`. The `path` identifies which. Resolution
+`UTOS-T003` applies at **every** `TransitionTarget` site — a rule's `transition` exit, in any
+list. The `path` identifies which. Resolution
 is scoped to the workflow that declares the transition — a target never crosses into a
-sub-workflow. A target is always an activity: a document written before 0.0.16 that transitions
-to `end` or `error` fails here, loudly, since neither is an activity.
+sub-workflow. A target is always an activity; there are no terminal keywords to name.
 
-`UTOS-T005` is what makes an `error` action reportable. `code` is the identifier a consumer or an
-`on_failure` rule matches on, so it is a literal, not a template, and it is required; `message`
-and `details` are templates and may be omitted. The rule applies to an `error` action wherever one
-appears — a transition rule or an `onEmitted` rule.
+`UTOS-T005` is what makes an `error` exit reportable. `code` is the identifier a consumer or an
+`onFailure` rule matches on, so it is a literal, not a template, and it is required; `message`
+and `details` are templates and may be omitted. The rule applies wherever an `error` exit appears,
+which is every list.
 
 The one exception is the **re-raise**: an `error` with no `code`, no `message` and no `details`, in
 an `onFailure` rule, fails the path with the failure being handled, as it is. Only `onFailure` has
@@ -169,8 +167,8 @@ one in scope — after a success, and when an `onEmitted` rule fires on a value,
 `onFailure`: a `message` or `details` without a `code` is a mistake, not a re-raise, because
 there is no way to re-raise a failure with its explanation replaced and its identifier kept.
 
-A **dispatch** is not a transition site. A promise branch, and the `handle` block of an `onEmitted`
-rule, name a document rather than an activity in this one, so they are checked by
+A **dispatch** is not a transition site. A promise branch, and a rule's `workflow.call` effect,
+name a document rather than an activity in this one, so they are checked by
 `UTOS-C501`–`UTOS-C503` instead. That is the whole distinction the dispatch range exists to draw:
 a transition stays inside a workflow, a dispatch leaves it.
 
@@ -178,12 +176,10 @@ An `onEmitted` rule carrying a `transition` is therefore a transition site like 
 rule is evaluated by the consumer, so its target is an activity in the consumer's own workflow.
 What is a dispatch and what is a transition is decided per action, not per construct.
 
-`UTOS-T004` exists because `emit` is the one action that is not terminal. `result` and `error`
-end a path and need no target; `emit` appends a value and carries on, so a rule that emits without
-saying where to go next is a dead end rather than a return, and would strand the execution.
-
-The shared validator walks `onSuccess` and `onFailure` alike, so `UTOS-T003` applies uniformly
-across both.
+`UTOS-T004` is **retired in 0.20.0, not renumbered.** It required the transition that `emit`
+carried inside itself, back when `emit` was an action rather than an effect. A rule now says what
+it does and where it goes separately, and `UTOS-T001` covers what is left: in a list whose rules
+end the activity, an exit is required, because a rule that only emits would strand the execution.
 
 ## `UTOS-C1##` — HTTP configuration
 
@@ -203,9 +199,16 @@ with this diagnostic rather than as a raw HTTP client error.
 | Code | Rule |
 |---|---|
 | `UTOS-C201` | `duration` is required |
-| `UTOS-C202` | `duration` must be positive |
+| `UTOS-C202` | A literal `duration` must be positive |
+| `UTOS-C203` | A literal `duration` must be a duration string — `90s`, `8h`, `1h30m` — as `workflow-source-format.md` § Durations defines |
 
 There is deliberately no maximum. A long wait is legitimate.
+
+`UTOS-C202` and `UTOS-C203` check a **literal**. A `duration` may instead be a whole-field `{{ }}`
+template, which no load-time rule can evaluate; what it renders to is checked when the activity is
+entered, and a bad value fails the activity with `UTOS-E106`
+([`template-expressions.md`](template-expressions.md)). This is the same division `UTOS-C102` draws
+for a templated URL.
 
 ## `UTOS-C3##` — Promise configuration
 
@@ -268,24 +271,23 @@ cannot transition into the consumer's flow, and it has no `result` to end the co
 | `UTOS-C501` | `workflow` is required and non-empty |
 | `UTOS-C502` | `startActivity` is required and non-empty |
 | `UTOS-C503` | `startActivity` must name an activity in the dispatched workflow |
-| `UTOS-C504` | A `call.onEmitted` rule must carry an action |
+| ~~`UTOS-C504`~~ | *Retired in 0.20.0, not to be reused.* A `call.onEmitted` rule had to carry an action, when such a rule was a message of its own |
 
-A **dispatch** is "run this document, starting here": a `promise.branches` entry and the `handle`
-block of a `call.onEmitted` rule, which carry the same three fields and mean the same thing by
-them. `UTOS-C501`–`UTOS-C503` check a dispatch wherever one appears; a branch declares those fields
+A **dispatch** is "run this document, starting here": a `promise.branches` entry and a rule's
+`workflow.call` effect, which carry the same three fields and mean the same thing by them. `UTOS-C501`–`UTOS-C503` check a dispatch wherever one appears; a branch declares those fields
 flat, an emission rule nests them, and neither changes what is being checked.
 
-`UTOS-C504` is deliberately weak. An emission rule carries `handle`, `transition` or `result` as a
-proto `oneof`, so *two* actions cannot be expressed at all and there is nothing to check; what is
-left is a rule with **none**, which is a value that matched a condition and then did nothing. That
-is a dead end rather than a skip — an unmatched rule list already means "take the next value" — and
-is the same distinction `UTOS-T001` draws for a transition rule.
+`UTOS-C504` is **retired in 0.20.0, not renumbered.** It said that an emission rule must carry an
+action, when an emission rule was a message of its own. One rule type now serves every list, and
+the reworded `UTOS-T001` says the same thing for all of them: a rule with neither an effect nor an
+exit matched a condition and then did nothing, which is a dead end rather than a skip — an
+unmatched rule list already means "take the next value".
 
 A rule that carries `transition` is a transition site, so `UTOS-T003` applies to its target: it
 must resolve in the **consuming** workflow, which is the one the rule is declared in. That is not a
 weakening of the document boundary. The rule is evaluated by the consumer, in its own execution;
-only a dispatched *handler* is another document, and it still cannot name the consumer's
-activities (`UTOS-S011`).
+only the document a `workflow.call` effect dispatches is another document, and it still cannot
+name the consumer's activities (`UTOS-S011`).
 
 They share a range rather than each borrowing their construct's, because the alternative is two
 identical rules with different codes — and a code is what an implementation suppresses, cites in a
@@ -294,7 +296,7 @@ learned what `UTOS-C502` means has learned it everywhere.
 
 `UTOS-C503` is checkable for the same reason `UTOS-C403` is: the dispatched workflow is present in
 the bundle by `UTOS-B006`. By the time a bundle exists, `self` has already been rewritten to a
-canonical identity by the CLI, so these rules never see the word — an unresolvable alias is a
+canonical identity by the front end that built it, so these rules never see the word — an unresolvable alias is a
 source-format error (`UTOS-S004`), caught before a bundle is built.
 
 Note that `UTOS-C501`–`UTOS-C503` deliberately mirror `UTOS-C401`–`UTOS-C403` rather than
@@ -317,7 +319,7 @@ existed validates unchanged.
 Two of those rules — `UTOS-H013` and `UTOS-H014` — are referential in the ordinary sense of this
 document, and are worth knowing about from here: a `transition.input`, or the `input` of anything
 that starts a document — a `workflow.call` or `workflow.spawn` activity, a promise branch, a
-`handle` — must supply every property the target activity's declared input requires, and none it
+`workflow.call` effect — must supply every property the target activity's declared input requires, and none it
 does not declare. `workflow-schemas.md` calls that set an **invocation**, rather than reusing
 *dispatch*, precisely because this document holds a `workflow.call` apart from a dispatch and that
 distinction is worth keeping.
@@ -327,10 +329,13 @@ every rule in this document has to pass.
 
 ---
 
-## Struct values
+## Templates
 
-`google.protobuf.Struct` values — `TransitionRule.result`, `TransitionTarget.input`,
-`WorkflowActivityConfig.input` — are not otherwise inspected, with one exception:
+The `google.protobuf.Struct`s in a bundle are **templates**: `TransitionTarget.input`,
+`TransitionRule.result`, `TransitionRule.emit`, `WorkflowError.details`, and the `input` of a
+sub-workflow activity, a promise branch or a `workflow.call` effect. They are not otherwise
+inspected, with one
+exception:
 
 | Code | Rule |
 |---|---|
@@ -343,6 +348,11 @@ digest uncomputable. `canonical-bundle-digest.md` requires rejecting them at bui
 The schema slots are the exception to "not otherwise inspected": `ActivitySchema.input`,
 `WorkflowSpec.output`, `WorkflowSpec.emits` and `WorkflowSpec.env` are `Struct`s whose *content*
 is a specified document, and `UTOS-H0##` inspects it.
+
+`UTOS-V0##` covers templates. A run's own values — its input, its results, its emitted values —
+are `utos.workflow.v1.WorkflowValue`s, which never appear in a bundle, and their rules are
+`UTOS-V1##` in [`workflow-values.md`](workflow-values.md). A template may contain any key,
+`$blob` included: nothing in a bundle is a blob, and no key is reserved.
 
 ## Conformance
 

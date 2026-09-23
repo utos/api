@@ -1,0 +1,23 @@
+# A rule is an optional condition, at most one effect and at most one exit. `emit` names its value
+# directly, the exit sits beside it, and a dotted effect key resolves through the `effect` oneof the
+# way `type:` resolves through `config`.
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: rules
+  version: 1.0.0
+spec:
+  activities:
+    poll:
+      type: http
+      method: GET
+      url: https://api.example.com/items
+      onSuccess:
+        - condition: "output.items.length > 0"
+          emit: { items: "{{ output.items }}" }
+          transition: { name: poll }
+        - workflow.call:
+            workflow: self
+            startActivity: poll
+          transition: { name: poll }
+        - return: { done: true }

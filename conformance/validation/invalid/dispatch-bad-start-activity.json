@@ -19,9 +19,11 @@
               "call": {
                 "onEmitted": [
                   {
-                    "handle": {
-                      "workflow": "acme/ingester:1.0.0",
-                      "startActivity": "nonexistent"
+                    "workflow": {
+                      "call": {
+                        "workflow": "acme/ingester:1.0.0",
+                        "startActivity": "nonexistent"
+                      }
                     }
                   }
                 ]

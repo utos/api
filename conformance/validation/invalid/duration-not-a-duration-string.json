@@ -1,0 +1,29 @@
+{
+  "entryPoint": "acme/waiter:1.0.0",
+  "workflows": {
+    "acme/waiter:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "waiter",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "A duration Go would accept and this syntax does not: fractions round differently in two implementations."
+      },
+      "spec": {
+        "activities": {
+          "wait": {
+            "timer": {
+              "duration": "1.5h"
+            },
+            "onSuccess": [
+              {
+                "result": {}
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

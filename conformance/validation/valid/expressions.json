@@ -36,12 +36,21 @@
                     "sorted": "{{ output.items.toSorted((a, b) => a.rank - b.rank).map(({ id }) => id) }}",
                     "counter": "{{ let n = 0; output.items.forEach(() => { n += 1; }); n }}",
                     "literal": "plain text",
-                    "nested": { "deep": "{{ input.id }}", "num": 5.0, "list": ["{{ input.id }}", 1, true, null] }
+                    "nested": {
+                      "deep": "{{ input.id }}",
+                      "num": 5,
+                      "list": [
+                        "{{ input.id }}",
+                        1,
+                        true,
+                        null
+                      ]
+                    }
                   }
                 }
               },
               {
-                "condition": "output.missing?.deep === 'x' || 'name' in output || typeof output.count === 'number'",
+                "condition": "output.missing?.deep === 'x' || 'name' in output || typeof output.count === 'number' || (input instanceof Object && output.items instanceof Array)",
                 "result": {
                   "decoded": "{{ Buffer.from(output.data, 'base64url').toString() }}",
                   "digest": "{{ crypto.createHmac('sha256', env.SECRET).update(output.data).digest('hex') }}",
@@ -54,15 +63,23 @@
               {
                 "condition": "true",
                 "emit": {
-                  "value": { "message": "{{ output.message }}" },
-                  "transition": { "name": "fetch" }
+                  "message": "{{ output.message }}"
+                },
+                "transition": {
+                  "name": "fetch"
                 }
               }
             ],
             "onFailure": [
               {
                 "condition": "response.status === 429 || response.status >= 500",
-                "transition": { "name": "fetch", "input": { "retryAfter": "{{ response.headers['retry-after'] }}", "raw": "{{ response.body.toString('hex') }}" } }
+                "transition": {
+                  "name": "fetch",
+                  "input": {
+                    "retryAfter": "{{ response.headers['retry-after'] }}",
+                    "raw": "{{ (await response.body.slice(0, 64).bytes()).toString('hex') }}"
+                  }
+                }
               }
             ]
           },
@@ -72,25 +89,51 @@
               "branches": [
                 {
                   "name": "item-{{ item.id }}",
-                  "forEach": { "collection": "{{ input.ids.map(id => ({ id })) }}", "alias": "item" },
+                  "forEach": {
+                    "collection": "{{ input.ids.map(id => ({ id })) }}",
+                    "alias": "item"
+                  },
                   "condition": "item.id !== 'skip'",
                   "workflow": "acme/expressions:1.0.0",
                   "startActivity": "fetch",
-                  "input": { "id": "{{ item.id }}" }
+                  "input": {
+                    "id": "{{ item.id }}"
+                  }
                 }
               ]
             },
-            "onSuccess": [ { "result": { "quotes": "{{ output }}" } } ]
+            "onSuccess": [
+              {
+                "result": {
+                  "quotes": "{{ output }}"
+                }
+              }
+            ]
           },
           "watch": {
             "workflow": {
               "workflow": "acme/expressions:1.0.0",
               "startActivity": "fetch",
-              "input": { "id": "{{ input.id }}" },
+              "input": {
+                "id": "{{ input.id }}"
+              },
               "call": {
                 "onEmitted": [
-                  { "condition": "output.message === 'done'", "result": {} },
-                  { "handle": { "workflow": "acme/expressions:1.0.0", "startActivity": "fetch", "input": { "id": "{{ output.message }}" } } }
+                  {
+                    "condition": "output.message === 'done'",
+                    "result": {}
+                  },
+                  {
+                    "workflow": {
+                      "call": {
+                        "workflow": "acme/expressions:1.0.0",
+                        "startActivity": "fetch",
+                        "input": {
+                          "id": "{{ output.message }}"
+                        }
+                      }
+                    }
+                  }
                 ]
               }
             }

@@ -1,0 +1,125 @@
+{
+  "entryPoint": "acme/rules:1.0.0",
+  "workflows": {
+    "acme/rules:1.0.0": {
+      "apiVersion": "utos.io/v1",
+      "kind": "Workflow",
+      "metadata": {
+        "name": "rules",
+        "namespace": "acme",
+        "version": "1.0.0",
+        "description": "An effect, an exit, both, and neither-but-one — every legal rule shape, in every list."
+      },
+      "spec": {
+        "activities": {
+          "poll": {
+            "http": {
+              "method": "GET",
+              "url": "https://api.example.com/items"
+            },
+            "onSuccess": [
+              {
+                "condition": "output.items.length > 0",
+                "emit": {
+                  "items": "{{ output.items }}"
+                },
+                "transition": {
+                  "name": "wait",
+                  "input": {
+                    "cursor": "{{ output.cursor }}"
+                  }
+                }
+              },
+              {
+                "condition": "output.done",
+                "emit": {
+                  "items": []
+                },
+                "result": {
+                  "polled": true
+                }
+              },
+              {
+                "workflow": {
+                  "call": {
+                    "workflow": "acme/rules:1.0.0",
+                    "startActivity": "wait"
+                  }
+                },
+                "transition": {
+                  "name": "wait"
+                }
+              },
+              {
+                "result": {}
+              }
+            ],
+            "onFailure": [
+              {
+                "emit": {
+                  "failed": true
+                },
+                "error": {
+                  "code": "POLL_FAILED",
+                  "message": "{{ error.message }}"
+                }
+              },
+              {
+                "error": {}
+              }
+            ]
+          },
+          "wait": {
+            "timer": {
+              "duration": "{{ input.retryAfter ?? '30s' }}"
+            },
+            "onSuccess": [
+              {
+                "transition": {
+                  "name": "consume"
+                }
+              }
+            ]
+          },
+          "consume": {
+            "workflow": {
+              "call": {
+                "onEmitted": [
+                  {
+                    "condition": "output.items.length > 0",
+                    "emit": {
+                      "batch": "{{ output.items }}"
+                    }
+                  },
+                  {
+                    "workflow": {
+                      "call": {
+                        "workflow": "acme/rules:1.0.0",
+                        "startActivity": "wait"
+                      }
+                    }
+                  },
+                  {
+                    "condition": "output.done",
+                    "result": {
+                      "consumed": true
+                    }
+                  }
+                ]
+              },
+              "workflow": "acme/rules:1.0.0",
+              "startActivity": "poll"
+            },
+            "onSuccess": [
+              {
+                "result": {
+                  "consumed": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -13,22 +13,44 @@
       "spec": {
         "activities": {
           "fetch": {
-            "http": { "method": "GET", "url": "https://api.example.com/orders/1" },
+            "http": {
+              "method": "GET",
+              "url": "https://api.example.com/orders/1"
+            },
             "onSuccess": [
-              { "condition": "output.status === 'shipped'", "result": { "shipped": true, "at": "{{ new Date().toISOString() }}" } },
-              { "condition": "output.status === 'cancelled'", "result": {} },
-              { "transition": { "name": "watch" } }
+              {
+                "condition": "output.status === 'shipped'",
+                "result": {
+                  "shipped": true,
+                  "at": "{{ new Date().toISOString() }}"
+                }
+              },
+              {
+                "condition": "output.status === 'cancelled'",
+                "result": {}
+              },
+              {
+                "transition": {
+                  "name": "watch"
+                }
+              }
             ],
             "onFailure": [
               {
                 "condition": "response.status === 404",
-                "error": { "code": "ORDER_NOT_FOUND", "message": "order {{ input.orderId }} does not exist" }
+                "error": {
+                  "code": "ORDER_NOT_FOUND",
+                  "message": "order {{ input.orderId }} does not exist"
+                }
               },
               {
                 "error": {
                   "code": "ORDER_FETCH_FAILED",
                   "message": "{{ error.message }}",
-                  "details": { "status": "{{ response.status }}", "body": "{{ response.body.toString('base64') }}" }
+                  "details": {
+                    "status": "{{ response.status }}",
+                    "body": "{{ (await response.body.bytes()).toString('base64') }}"
+                  }
                 }
               }
             ]
@@ -39,17 +61,44 @@
               "startActivity": "fetch",
               "call": {
                 "onEmitted": [
-                  { "condition": "output.kind === 'done'", "result": {} },
-                  { "condition": "output.kind === 'bad'", "error": { "code": "BAD_VALUE" } },
-                  { "handle": { "workflow": "acme/actions:1.0.0", "startActivity": "fetch" } }
+                  {
+                    "condition": "output.kind === 'done'",
+                    "result": {}
+                  },
+                  {
+                    "condition": "output.kind === 'bad'",
+                    "error": {
+                      "code": "BAD_VALUE"
+                    }
+                  },
+                  {
+                    "workflow": {
+                      "call": {
+                        "workflow": "acme/actions:1.0.0",
+                        "startActivity": "fetch"
+                      }
+                    }
+                  }
                 ]
               }
             },
-            "onSuccess": [ { "result": { "watched": true } } ]
+            "onSuccess": [
+              {
+                "result": {
+                  "watched": true
+                }
+              }
+            ]
           },
           "end": {
-            "timer": { "duration": "1s" },
-            "onSuccess": [ { "result": {} } ]
+            "timer": {
+              "duration": "1s"
+            },
+            "onSuccess": [
+              {
+                "result": {}
+              }
+            ]
           }
         }
       }

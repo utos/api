@@ -1,0 +1,5 @@
+{
+  "schema": { "type": "object", "properties": { "s": { "type": "string", "maxSize": 1, "mediaType": "image/*" } }, "unevaluatedProperties": false },
+  "value": { "s": "a string longer than one byte" },
+  "expect": { "valid": true }
+}

@@ -25,8 +25,9 @@ the rule that broke rather than requiring the reader to work out which of severa
 
 ## Running them
 
-Each SDK runs this directory as part of its own test suite. `sdk-dotnet` copies it in alongside
-the protos during release and drives it from `Utos.Workflow.Validation.Tests`.
+Every implementation of the bundle rules runs this directory as part of its own test suite.
+`utos/sdk-dotnet` vendors it, with the protos, from the spec release it implements, and drives it
+from `Utos.Workflow.Validation.Tests`.
 
 ## Adding a case
 
