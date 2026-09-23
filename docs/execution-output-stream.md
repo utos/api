@@ -1,7 +1,7 @@
 # Execution Output Streams
 
 Every execution has exactly one **output stream**: an ordered, durable, cursor-addressable
-sequence of the values it produced. A workflow appends to it with the `emit` transition action
+sequence of the values it produced. A workflow appends to it with a rule's `emit` effect
 (`workflow/v1/activity.proto`); a caller consumes it with `CallActivityConfig.on_emitted`; anyone
 else reads it with `ExecutionService.WatchOutput` (`daemon/v1/execution.proto`).
 
@@ -15,8 +15,8 @@ breaking every caller.
 ## The stream
 
 An execution's stream is **zero or more `value` entries followed by exactly one terminal entry**.
-The terminal entry is the `result` a `result` action returned, or an `error` if the execution
-failed or was cancelled. It is always last, and it always exists once the execution is terminal —
+The terminal entry is the value a `result` exit returned, or an `error` if the execution failed or
+was cancelled. It is always last, and it always exists once the execution is terminal —
 a path that ended without returning anything terminates the stream with an empty structure, not
 with nothing.
 
@@ -74,8 +74,8 @@ single entry: one emission carrying five thousand records is still one emission.
 rather than a gap — batch size is pagination policy, and pagination policy belongs to the producer,
 which is the encapsulation this feature exists to enable.
 
-Consuming is a loop, and a rule's `workflow.call` effect is its body: a **document**, dispatched
-once per entry: its execution terminating is what finishes one iteration, and control then returns to
+Consuming is a loop, and a rule's `workflow.call` effect is its body: a **document** — the
+**handler** — dispatched once per entry: its execution terminating is what finishes one iteration, and control then returns to
 the call activity for the next entry. Re-entering the call activity while a subscription is live
 consumes the next entry rather than starting a second child.
 

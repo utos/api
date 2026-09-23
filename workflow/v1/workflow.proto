@@ -28,7 +28,7 @@ message WorkflowMetadata {
   // Human-readable description
   optional string description = 3;
 
-  // Namespace qualifier (e.g., "google" in "google/gmail:v1.0.0"). Omitted for
+  // Namespace qualifier (e.g., "google" in "google/gmail:1.0.0"). Omitted for
   // local/unpublished workflows.
   optional string namespace = 4;
 

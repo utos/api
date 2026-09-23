@@ -7,6 +7,14 @@ stable code, for the same reason as [`workflow-validation.md`](workflow-validati
 workflow must mean the same thing on every implementation, and an expression that one daemon
 accepts cannot be one another rejects or computes differently.
 
+**In this document.** [Where expressions appear](#where-expressions-appear) and
+[Forms](#forms) are the syntax around an expression; [Scope](#scope) is what it can see;
+[Values](#values) is what may cross in and out, including numbers and durations;
+[Grammar](#grammar) is the subset of JavaScript; [Runtime guarantees](#runtime-guarantees),
+[Surface](#surface) and [Node.js globals](#nodejs-globals) are what an evaluator must provide —
+`Blob`, `File` and `await` among them. [Migrating](#migrating) is for documents written against
+an earlier version.
+
 ## What this document covers
 
 Expressions are **JavaScript**, by reference to ECMAScript, restricted to the subset in

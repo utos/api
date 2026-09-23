@@ -167,8 +167,8 @@ message DispatchEffect {
 // Defines the target of a transition
 message TransitionTarget {
   // The name of an activity in the same workflow (UTOS-T003). Nothing else:
-  // ending a path is a `result` action and failing it is an `error` action, so
-  // there are no keywords and no name is reserved.
+  // ending a path is a `result` exit and failing it an `error` exit, so there
+  // are no keywords and no name is reserved.
   // The name may reference an already-visited activity — a back-edge — which
   // forms a loop (e.g. poll-inbox -> wait -> poll-inbox). A loop with no rule
   // carrying a `result` runs until the execution is cancelled, expressing an
@@ -412,7 +412,7 @@ message PromiseCountConfig {
 //
 // A branch dispatches a *document*, not an activity: the same `workflow` /
 // `start_activity` / `input` triple a HandlerDispatch carries, declared flat
-// here because a branch has no alternative action to disambiguate from. See
+// here because a branch has no alternative to disambiguate from. See
 // HandlerDispatch for what a dispatch means and why both constructs agree on
 // its content.
 message PromiseBranch {
