@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 **One version line across the spec and its implementations.** The spec
-(`utos/api`), `utos/sdk-dotnet`, `utos/dapr-daemon` and `utos/cli` share one
+(`utos/api`), `utos/sdk-dotnet`, `utos/daemon-dapr` and `utos/cli` share one
 version, and its minor is the spec: `0.20.x` in any of them means *implements
 spec 0.20*. A release gives its version only to the components that changed, so
 the numbers below may skip; a component with nothing new does not release.

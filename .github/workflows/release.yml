@@ -1,84 +1,34 @@
 name: Release
 
-# Finalizes a spec release: extracts the version from CHANGELOG.md, creates the git tag
-# `v{version}`, then NOTIFIES every utos/sdk-* repo via repository_dispatch so they
-# regenerate and publish. This repo still publishes no packages itself.
+# Publishes the GitHub release for a spec release tag, with its CHANGELOG section as the notes.
+# The spec publishes no packages.
 #
-# SDK repos are discovered at runtime (no hardcoded names): a GitHub App token lists the
-# org repos it can access and we dispatch to those matching `utos/sdk-*`. A new SDK repo
-# is picked up automatically — this workflow never needs editing per-SDK.
-#
-# Requires (org GitHub App with Contents:write + Metadata:read, installed org-wide):
-#   secrets.APP_ID, secrets.APP_PRIVATE_KEY
+# Only a tag starts it, and the tag is created by the Utos release, which decides the version and
+# which components carry it. A push to a branch never publishes.
 
 on:
   push:
-    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: write   # the GitHub release
 
 jobs:
   release:
-    name: Tag release
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # Needed to create tags
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Extract version from CHANGELOG.md
-        id: version
-        run: |
-          # Get first version line that has a date (not Unreleased)
-          VERSION_LINE=$(grep -m1 '^\#\# \[.*\] - [0-9]' CHANGELOG.md || true)
-
-          if [ -z "$VERSION_LINE" ]; then
-            echo "::error::No released version found in CHANGELOG.md (version must have a date, not 'Unreleased')"
-            exit 1
-          fi
-
-          VERSION=$(echo "$VERSION_LINE" | sed 's/.*\[\(.*\)\].*/\1/')
-          echo "Found version: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Check if tag already exists
-        run: |
-          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
-            echo "::error::Tag v${{ steps.version.outputs.version }} already exists"
-            exit 1
-          fi
-
-      - name: Create and push tag
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "v${{ steps.version.outputs.version }}"
-          git push origin "v${{ steps.version.outputs.version }}"
-
-      # --- Notify SDK repos (utos/sdk-*) -----------------------------------------
-      - name: Mint GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}   # all org repos the app is installed on
-
-      - name: Dispatch spec-released to SDK repos
+      - name: GitHub release
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          VERSION: ${{ steps.version.outputs.version }}
-          SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          repos=$(gh api --paginate /installation/repositories \
-                    --jq '.repositories[].full_name' | grep -E '^${{ github.repository_owner }}/sdk-' || true)
-          if [ -z "$repos" ]; then
-            echo "::notice::No ${{ github.repository_owner }}/sdk-* repos to notify."
-            exit 0
+          VERSION="${GITHUB_REF_NAME#v}"
+          grep -qE "^## \[${VERSION//./\\.}\] - [0-9]{4}-[0-9]{2}-[0-9]{2}" CHANGELOG.md \
+            || { echo "::error::CHANGELOG.md has no dated heading for $VERSION"; exit 1; }
+          awk -v v="## [$VERSION]" 'index($0, v) == 1 { grab = 1; next } /^## \[/ && grab { exit } grab { print }' CHANGELOG.md > notes.md
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes.md
           fi
-          for r in $repos; do
-            echo "Dispatching spec-released (v$VERSION) to $r"
-            printf '{"event_type":"spec-released","client_payload":{"version":"%s","sha":"%s","tag":"v%s"}}' \
-              "$VERSION" "$SHA" "$VERSION" | gh api -X POST "repos/$r/dispatches" --input -
-          done

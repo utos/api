@@ -85,19 +85,20 @@ a `WorkflowError`, and those raised at schedule as `INVALID_ARGUMENT` carrying
 
 ## Versioning
 
-One version line runs through every Utos repository: **the minor is the contract, the patch is the
-repository's own**. `0.20.x` anywhere means *implements spec 0.20*. This repository releases
-`0.MINOR.0` for a change to the spec and `0.MINOR.PATCH` for a correction that changes no
-behaviour. See [`CHANGELOG.md`](CHANGELOG.md).
+The spec, `utos/sdk-dotnet`, `utos/daemon-dapr` and `utos/cli` share one version, and its minor
+is the spec: `0.20.x` anywhere means *implements spec 0.20*. A change to the spec is a new minor;
+a correction that changes no behaviour is a patch, and an implementation need not release with it.
+A release gives its version only to what it changed, so each repository's versions may skip
+numbers. See [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Implementations
 
 - [utos/sdk-dotnet](https://github.com/utos/sdk-dotnet) — the .NET SDK on nuget.org:
   `Utos.Workflow` (the message types and the content digest), `Utos.Workflow.Source` (the source
   format), `Utos.Workflow.Validation` (the bundle rules), `Utos.Daemon.Client` and
-  `Utos.Daemon.Server`. SDKs are generated and published from their own repositories, which
+  `Utos.Daemon.Server`. It is released together with the spec. SDKs in other repositories
   subscribe to this repository's `v{version}` tags; no Buf Schema Registry account is needed.
-- [utos/dapr-daemon](https://github.com/utos/dapr-daemon) — the reference daemon.
+- [utos/daemon-dapr](https://github.com/utos/daemon-dapr) — the reference daemon.
 - [utos/cli](https://github.com/utos/cli) — the `utos` command.
 
 ## License
